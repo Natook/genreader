@@ -172,6 +172,56 @@
         .close-btn:hover {
             color: #333;
         }
+
+        .edit-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        .edit-btn:hover {
+            background: #5568d3;
+        }
+
+        .note-textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-family: inherit;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .btn-save {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .btn-cancel {
+            background: #999;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
     </style>
 </head>
 
@@ -179,6 +229,14 @@
     <div class="container">
         <h1>🌳 Svedström Family Tree</h1>
         <p class="subtitle">GEDCOM Viewer</p>
+
+        <div style="text-align: center; margin-bottom: 20px;">
+            <button id="saveBtn" onclick="saveGedcom()"
+                style="padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; margin-right: 10px; display: none;">
+                💾 Save GEDCOM File
+            </button>
+            <span id="saveStatus" style="color: #666; font-size: 14px;"></span>
+        </div>
 
         <div class="search-box" id="fileInputContainer" style="text-align: center; padding: 40px;">
             <input type="file" id="fileInput" accept=".ged" style="display: none;">
@@ -208,6 +266,8 @@
     <script>
         let allPersons = [];
         let filteredPersons = [];
+        let originalGedcomText = '';
+        let hasChanges = false;
 
         // Handle file selection
         document.getElementById('fileInput').addEventListener('change', function (e) {
@@ -216,9 +276,11 @@
                 document.getElementById('personList').innerHTML = '<div class="loading">Loading GEDCOM file...</div>';
                 const reader = new FileReader();
                 reader.onload = function (event) {
+                    originalGedcomText = event.target.result;
                     parseGedcom(event.target.result);
                     document.getElementById('fileInputContainer').style.display = 'none';
                     document.getElementById('searchContainer').style.display = 'block';
+                    document.getElementById('saveBtn').style.display = 'inline-block';
                 };
                 reader.readAsText(file);
             }
@@ -273,7 +335,7 @@
                     currentTag = null;
                 } else if (level === 1 && currentEntity) {
                     // Save previous note if switching tags
-                    if (currentNote !== null && tag !== 'CONC' && tag !== 'CONT') {
+                    if (currentNote !== null && tag !== 'CONC' && tag !== 'CONT' && tag !== 'NOTE') {
                         if (currentType === 'INDI') {
                             let cleanNote = currentNote.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&ouml;/g, 'ö').replace(/&aring;/g, 'å').replace(/&auml;/g, 'ä').replace(/&Ouml;/g, 'Ö').replace(/&Aring;/g, 'Å').replace(/&Auml;/g, 'Ä').replace(/&ndash;/g, '–').replace(/&amp;/g, '&').trim();
                             if (cleanNote) {
@@ -413,11 +475,21 @@
 
             // Display notes if available
             if (person.notes && person.notes.length > 0) {
-                detailHTML += '<h3 style="margin-top: 20px;">Notes:</h3>';
-                person.notes.forEach(note => {
-                    detailHTML += `<p style="background: #f5f5f5; padding: 10px; border-radius: 5px; margin: 10px 0;">${note}</p>`;
+                detailHTML += '<h3 style="margin-top: 20px;">Notes:</h3><div id="notesContainer">';
+                person.notes.forEach((note, index) => {
+                    detailHTML += `
+                        <div id="note-${index}" style="margin: 10px 0;">
+                            <p style="background: #f5f5f5; padding: 10px; border-radius: 5px;">${note}</p>
+                            <button class="edit-btn" onclick="editNote('${person.id}', ${index})">✏️ Edit</button>
+                        </div>
+                    `;
                 });
+                detailHTML += '</div>';
+            } else {
+                detailHTML += '<h3 style="margin-top: 20px;">Notes:</h3><div id="notesContainer"></div>';
             }
+
+            detailHTML += '<button class="edit-btn" onclick="addNewNote(\'' + person.id + '\')">➕ Add Note</button>';
 
             // Get family information
             if (person.parentFamily && window.gedcomFamilies[person.parentFamily]) {
@@ -468,6 +540,187 @@
 
         function closeDetail() {
             document.getElementById('detailModal').classList.remove('active');
+        }
+
+        function editNote(personId, noteIndex) {
+            const person = allPersons.find(p => p.id === personId);
+            if (!person) return;
+
+            const noteElement = document.getElementById(`note-${noteIndex}`);
+            const currentNote = noteIndex === -1 ? '' : person.notes[noteIndex];
+
+            noteElement.innerHTML = `
+                <textarea class="note-textarea" id="noteEdit-${noteIndex}">${currentNote}</textarea>
+                <div class="btn-group">
+                    <button class="btn-save" onclick="saveNote('${personId}', ${noteIndex})">
+                        💾 Save
+                    </button>
+                    <button class="btn-cancel" onclick="cancelEdit('${personId}')">
+                        ✕ Cancel
+                    </button>
+                </div>
+            `;
+        }
+
+        function addNewNote(personId) {
+            const person = allPersons.find(p => p.id === personId);
+            if (!person) return;
+
+            const noteIndex = person.notes.length;
+            const notesContainer = document.getElementById('notesContainer');
+
+            const newNoteDiv = document.createElement('div');
+            newNoteDiv.id = `note-${noteIndex}`;
+            newNoteDiv.innerHTML = `
+                <textarea class="note-textarea" id="noteEdit-${noteIndex}" placeholder="Enter new note..."></textarea>
+                <div class="btn-group">
+                    <button class="btn-save" onclick="saveNote('${personId}', ${noteIndex})">
+                        💾 Save
+                    </button>
+                    <button class="btn-cancel" onclick="cancelEdit('${personId}')">
+                        ✕ Cancel
+                    </button>
+                </div>
+            `;
+            notesContainer.appendChild(newNoteDiv);
+        }
+
+        function saveNote(personId, noteIndex) {
+            const person = allPersons.find(p => p.id === personId);
+            if (!person) return;
+
+            const newNoteText = document.getElementById(`noteEdit-${noteIndex}`).value.trim();
+
+            if (noteIndex === -1 || noteIndex >= person.notes.length) {
+                // New note
+                if (newNoteText) {
+                    person.notes.push(newNoteText);
+                }
+            } else {
+                // Edit existing note
+                if (newNoteText) {
+                    person.notes[noteIndex] = newNoteText;
+                } else {
+                    // Delete note if empty
+                    person.notes.splice(noteIndex, 1);
+                }
+            }
+
+            hasChanges = true;
+            document.getElementById('saveStatus').textContent = '⚠️ Unsaved changes';
+            document.getElementById('saveStatus').style.color = '#ff9800';
+
+            // Refresh the detail view
+            showDetail(personId);
+        }
+
+        function cancelEdit(personId) {
+            showDetail(personId);
+        }
+
+        function saveGedcom() {
+            if (!hasChanges) {
+                alert('No changes to save.');
+                return;
+            }
+
+            // Generate new GEDCOM content
+            const lines = originalGedcomText.split('\n');
+            const newLines = [];
+            let currentIndividual = null;
+            let skipUntilLevel = -1;
+            let notesInserted = false;
+            let i = 0;
+
+            while (i < lines.length) {
+                const line = lines[i].trim();
+                if (!line) {
+                    newLines.push(lines[i]);
+                    i++;
+                    continue;
+                }
+
+                const parts = line.split(' ');
+                const level = parseInt(parts[0]);
+                const tag = parts[1];
+
+                // Reset skip when we reach a lower or equal level
+                if (skipUntilLevel >= 0 && level <= skipUntilLevel) {
+                    skipUntilLevel = -1;
+                }
+
+                // Track current individual and reset notes inserted flag
+                if (level === 0 && tag.startsWith('@') && tag.endsWith('@')) {
+                    if (parts[2] === 'INDI') {
+                        currentIndividual = tag;
+                        notesInserted = false;
+                    } else {
+                        currentIndividual = null;
+                        notesInserted = false;
+                    }
+                }
+
+                // Skip old NOTE tags and their continuations
+                if (currentIndividual && level === 1 && tag === 'NOTE') {
+                    skipUntilLevel = 1;
+                    i++;
+                    continue;
+                }
+
+                if (skipUntilLevel >= 0 && level > skipUntilLevel) {
+                    i++;
+                    continue;
+                }
+
+                // Insert new notes after the header (_UPD) but before other tags
+                if (currentIndividual && !notesInserted && level === 1 && tag !== 'NOTE' && tag !== '_UPD') {
+                    const person = allPersons.find(p => p.id === currentIndividual);
+                    if (person && person.notes && person.notes.length > 0) {
+                        // Insert notes
+                        person.notes.forEach(note => {
+                            if (note.length <= 248) {
+                                newLines.push(`1 NOTE ${note}`);
+                            } else {
+                                // Split long notes with CONC
+                                newLines.push(`1 NOTE ${note.substring(0, 248)}`);
+                                let remaining = note.substring(248);
+                                while (remaining.length > 0) {
+                                    const chunk = remaining.substring(0, 248);
+                                    newLines.push(`2 CONC ${chunk}`);
+                                    remaining = remaining.substring(248);
+                                }
+                            }
+                        });
+                    }
+                    notesInserted = true;
+                }
+
+                newLines.push(lines[i]);
+                i++;
+            }
+
+            // Create and download the file
+            const newGedcomText = newLines.join('\n');
+            const blob = new Blob([newGedcomText], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+
+            // Add timestamp to filename
+            const now = new Date();
+            const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
+            a.download = `Svedström_släktträd_${timestamp}.ged`;
+
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            // Update status
+            document.getElementById('saveStatus').textContent = '✓ File downloaded successfully';
+            document.getElementById('saveStatus').style.color = '#4CAF50';
+            hasChanges = false;
+            originalGedcomText = newGedcomText;
         }
 
         // Search functionality
