@@ -248,6 +248,44 @@
             color: white;
         }
 
+        .date-picker-container {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .date-picker-container label {
+            font-weight: bold;
+            color: white;
+        }
+
+        .date-picker-container select {
+            padding: 8px 12px;
+            border-radius: 5px;
+            border: none;
+            font-size: 14px;
+            background: white;
+            color: #333;
+            cursor: pointer;
+        }
+
+        .date-picker-container button {
+            padding: 8px 15px;
+            border-radius: 5px;
+            border: none;
+            background: rgba(255, 255, 255, 0.3);
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .date-picker-container button:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+
         .event-item {
             background: rgba(255, 255, 255, 0.2);
             padding: 12px;
@@ -468,10 +506,10 @@
             displayPersons();
         }
 
-        function displayOnThisDay() {
+        function displayOnThisDay(selectedMonth, selectedDay) {
             const today = new Date();
-            const todayMonth = today.getMonth() + 1; // JavaScript months are 0-indexed
-            const todayDay = today.getDate();
+            const todayMonth = selectedMonth !== undefined ? selectedMonth : today.getMonth() + 1;
+            const todayDay = selectedDay !== undefined ? selectedDay : today.getDate();
 
             const events = [];
 
@@ -504,10 +542,37 @@
             });
 
             const container = document.getElementById('onThisDay');
+            const displayDate = new Date(2000, todayMonth - 1, todayDay); // Use a placeholder year for formatting
+
+            const monthNames = ['januari', 'februari', 'mars', 'april', 'maj', 'juni', 
+                                'juli', 'augusti', 'september', 'oktober', 'november', 'december'];
+            const dateText = `${todayDay} ${monthNames[todayMonth - 1]}`;
+
+            const datePickerHTML = `
+                <div class="date-picker-container">
+                    <label>Välj datum:</label>
+                    <select id="monthPicker" onchange="handleDateChange()">
+                        ${monthNames.map((month, i) => 
+                            `<option value="${i + 1}" ${i + 1 === todayMonth ? 'selected' : ''}>${month}</option>`
+                        ).join('')}
+                    </select>
+                    <select id="dayPicker" onchange="handleDateChange()">
+                        ${Array.from({length: 31}, (_, i) => i + 1).map(day => 
+                            `<option value="${day}" ${day === todayDay ? 'selected' : ''}>${day}</option>`
+                        ).join('')}
+                    </select>
+                    <button onclick="displayOnThisDay()">Idag</button>
+                </div>
+            `;
 
             if (events.length === 0) {
-                container.innerHTML = '';
-                container.style.display = 'none';
+                let html = '<div class="on-this-day">';
+                html += `<h2>🎉 På denna dag - ${dateText}</h2>`;
+                html += datePickerHTML;
+                html += '<p style="background: rgba(255, 255, 255, 0.2); padding: 12px; border-radius: 5px;">Inga födelsedagar eller dödsdatum registrerade detta datum.</p>';
+                html += '</div>';
+                container.innerHTML = html;
+                container.style.display = 'block';
                 return;
             }
 
@@ -515,12 +580,13 @@
             events.sort((a, b) => (a.year || 9999) - (b.year || 9999));
 
             let html = '<div class="on-this-day">';
-            html += `<h2>🎉 On This Day - ${today.toLocaleDateString('sv-SE', { month: 'long', day: 'numeric' })}</h2>`;
+            html += `<h2>🎉 På denna dag - ${dateText}</h2>`;
+            html += datePickerHTML;
 
             events.forEach(event => {
                 const emoji = event.type === 'birth' ? '🎂' : '🕊️';
-                const action = event.type === 'birth' ? 'was born' : 'passed away';
-                const yearsAgoText = event.yearsAgo ? ` (${event.yearsAgo} years ago)` : '';
+                const action = event.type === 'birth' ? 'föddes' : 'gick bort';
+                const yearsAgoText = event.yearsAgo ? ` (för ${event.yearsAgo} år sedan)` : '';
                 const yearText = event.year || '?';
 
                 html += `
@@ -533,6 +599,13 @@
 
             html += '</div>';
             container.innerHTML = html;
+            container.style.display = 'block';
+        }
+
+        function handleDateChange() {
+            const month = parseInt(document.getElementById('monthPicker').value);
+            const day = parseInt(document.getElementById('dayPicker').value);
+            displayOnThisDay(month, day);
         }
 
         function parseGedcomDate(dateStr) {
