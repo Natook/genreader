@@ -222,6 +222,50 @@
             border-radius: 5px;
             cursor: pointer;
         }
+
+        .person-link {
+            color: #667eea;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        .person-link:hover {
+            color: #5568d3;
+        }
+
+        .on-this-day {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .on-this-day h2 {
+            margin-bottom: 15px;
+            font-size: 1.5em;
+            color: white;
+        }
+
+        .event-item {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .event-item:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateX(5px);
+        }
+
+        .event-type {
+            font-weight: bold;
+            margin-right: 5px;
+        }
     </style>
 </head>
 
@@ -250,6 +294,8 @@
         <div class="search-box" id="searchContainer" style="display: none;">
             <input type="text" id="searchInput" placeholder="Search by name...">
         </div>
+
+        <div id="onThisDay" style="display: none;"></div>
 
         <div class="person-list" id="personList">
             <div class="loading">Loading GEDCOM file...</div>
@@ -281,6 +327,8 @@
                     document.getElementById('fileInputContainer').style.display = 'none';
                     document.getElementById('searchContainer').style.display = 'block';
                     document.getElementById('saveBtn').style.display = 'inline-block';
+                    document.getElementById('onThisDay').style.display = 'block';
+                    displayOnThisDay();
                 };
                 reader.readAsText(file);
             }
@@ -417,6 +465,108 @@
             displayPersons();
         }
 
+        function displayOnThisDay() {
+            const today = new Date();
+            const todayMonth = today.getMonth() + 1; // JavaScript months are 0-indexed
+            const todayDay = today.getDate();
+
+            const events = [];
+
+            allPersons.forEach(person => {
+                // Check birth date
+                if (person.birth.date) {
+                    const birthDate = parseGedcomDate(person.birth.date);
+                    if (birthDate && birthDate.month === todayMonth && birthDate.day === todayDay) {
+                        events.push({
+                            type: 'birth',
+                            person: person,
+                            year: birthDate.year,
+                            yearsAgo: birthDate.year ? today.getFullYear() - birthDate.year : null
+                        });
+                    }
+                }
+
+                // Check death date
+                if (person.death.date) {
+                    const deathDate = parseGedcomDate(person.death.date);
+                    if (deathDate && deathDate.month === todayMonth && deathDate.day === todayDay) {
+                        events.push({
+                            type: 'death',
+                            person: person,
+                            year: deathDate.year,
+                            yearsAgo: deathDate.year ? today.getFullYear() - deathDate.year : null
+                        });
+                    }
+                }
+            });
+
+            const container = document.getElementById('onThisDay');
+
+            if (events.length === 0) {
+                container.innerHTML = '';
+                container.style.display = 'none';
+                return;
+            }
+
+            // Sort by year (oldest first)
+            events.sort((a, b) => (a.year || 9999) - (b.year || 9999));
+
+            let html = '<div class="on-this-day">';
+            html += `<h2>🎉 On This Day - ${today.toLocaleDateString('sv-SE', { month: 'long', day: 'numeric' })}</h2>`;
+
+            events.forEach(event => {
+                const emoji = event.type === 'birth' ? '🎂' : '🕊️';
+                const action = event.type === 'birth' ? 'was born' : 'passed away';
+                const yearsAgoText = event.yearsAgo ? ` (${event.yearsAgo} years ago)` : '';
+                const yearText = event.year || '?';
+
+                html += `
+                    <div class="event-item" onclick="showDetail('${event.person.id}')">
+                        <span class="event-type">${emoji} ${yearText}${yearsAgoText}:</span>
+                        ${event.person.name} ${action}
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function parseGedcomDate(dateStr) {
+            // GEDCOM dates can be in formats like:
+            // "17 JUN 1874", "JUN 1874", "1874", "29 FEB 1976"
+            if (!dateStr) return null;
+
+            const months = {
+                'JAN': 1, 'FEB': 2, 'MAR': 3, 'APR': 4, 'MAY': 5, 'JUN': 6,
+                'JUL': 7, 'AUG': 8, 'SEP': 9, 'OCT': 10, 'NOV': 11, 'DEC': 12
+            };
+
+            const parts = dateStr.trim().split(' ');
+            let day = null, month = null, year = null;
+
+            if (parts.length === 3) {
+                // "17 JUN 1874"
+                day = parseInt(parts[0]);
+                month = months[parts[1].toUpperCase()];
+                year = parseInt(parts[2]);
+            } else if (parts.length === 2) {
+                // Could be "JUN 1874" or "17 JUN"
+                if (months[parts[0].toUpperCase()]) {
+                    month = months[parts[0].toUpperCase()];
+                    year = parseInt(parts[1]);
+                } else {
+                    day = parseInt(parts[0]);
+                    month = months[parts[1].toUpperCase()];
+                }
+            } else if (parts.length === 1) {
+                // Just year "1874"
+                year = parseInt(parts[0]);
+            }
+
+            return { day, month, year };
+        }
+
         function displayPersons() {
             const listElement = document.getElementById('personList');
 
@@ -498,12 +648,12 @@
 
                 if (family.husband) {
                     const father = allPersons.find(p => p.id === family.husband);
-                    if (father) detailHTML += `<p>Father: ${father.name}</p>`;
+                    if (father) detailHTML += `<p>Father: <span class="person-link" onclick="showDetail('${father.id}')">${father.name}</span></p>`;
                 }
 
                 if (family.wife) {
                     const mother = allPersons.find(p => p.id === family.wife);
-                    if (mother) detailHTML += `<p>Mother: ${mother.name}</p>`;
+                    if (mother) detailHTML += `<p>Mother: <span class="person-link" onclick="showDetail('${mother.id}')">${mother.name}</span></p>`;
                 }
             }
 
@@ -517,14 +667,14 @@
                         const spouseId = person.sex === 'M' ? family.wife : family.husband;
                         if (spouseId) {
                             const spouse = allPersons.find(p => p.id === spouseId);
-                            if (spouse) detailHTML += `<p>Spouse: ${spouse.name}</p>`;
+                            if (spouse) detailHTML += `<p>Spouse: <span class="person-link" onclick="showDetail('${spouse.id}')">${spouse.name}</span></p>`;
                         }
 
                         if (family.children && family.children.length > 0) {
                             detailHTML += '<p><strong>Children:</strong></p><ul>';
                             family.children.forEach(childId => {
                                 const child = allPersons.find(p => p.id === childId);
-                                if (child) detailHTML += `<li>${child.name}</li>`;
+                                if (child) detailHTML += `<li><span class="person-link" onclick="showDetail('${child.id}')">${child.name}</span></li>`;
                             });
                             detailHTML += '</ul>';
                         }
