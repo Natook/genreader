@@ -369,7 +369,8 @@
                                 death: { date: '', place: '' },
                                 families: [],
                                 parentFamily: null,
-                                notes: []
+                                notes: [],
+                                relationship: ''
                             };
                         } else if (currentType === 'FAM') {
                             families[currentEntity] = {
@@ -402,6 +403,8 @@
                             individuals[currentEntity].sex = value;
                         } else if (tag === 'NOTE') {
                             currentNote = value;
+                        } else if (tag === '_RELA') {
+                            individuals[currentEntity].relationship = value;
                         } else if (tag === 'FAMS') {
                             individuals[currentEntity].families.push(value);
                         } else if (tag === 'FAMC') {
@@ -592,6 +595,9 @@
                     ? `<div class="person-info" style="margin-top: 8px; font-style: italic; color: #555;">📝 ${person.notes[0].substring(0, 100)}${person.notes[0].length > 100 ? '...' : ''}</div>`
                     : '';
 
+                const relationshipClass = person.relationship === 'Jag' ? 'relationship-me' : '';
+                const relationshipHtml = person.relationship ? `<div class="relationship-badge ${relationshipClass}">${person.relationship}</div>` : '';
+
                 return `
                     <div class="person-card" onclick="showDetail('${person.id}')">
                         <div class="person-name">
@@ -602,6 +608,7 @@
                             ${lifespan}
                         </div>
                         ${notesHtml}
+                        ${relationshipHtml}
                     </div>
                 `;
             }).join('');
@@ -613,8 +620,11 @@
             const person = allPersons.find(p => p.id === personId);
             if (!person) return;
 
+            const relationshipClass = person.relationship === 'Jag' ? 'relationship-me' : '';
+            const relationshipBadge = person.relationship ? `<div class="relationship-badge ${relationshipClass}" style="display: inline-block; margin-left: 10px;">${person.relationship}</div>` : '';
+
             let detailHTML = `
-                <h2>${person.name}</h2>
+                <h2>${person.name}${relationshipBadge}</h2>
                 <div style="margin-top: 20px;">
                     <p><strong>Gender:</strong> ${person.sex === 'M' ? 'Male' : person.sex === 'F' ? 'Female' : 'Unknown'}</p>
                     ${person.birth.date ? `<p><strong>Birth Date:</strong> ${person.birth.date}</p>` : ''}
