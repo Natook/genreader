@@ -368,19 +368,8 @@ function addRelationshipsToGedcom(inputFile, outputFile) {
 
     console.log(`Found ${Object.keys(individuals).length} individuals and ${Object.keys(families).length} families`);
 
-    // Find root person (you can change this to a specific person ID)
-    let rootId = null;
-    for (const [id, person] of Object.entries(individuals)) {
-        if (person.name && person.name.includes('Ulrika')) {
-            rootId = id;
-            break;
-        }
-    }
-
-    // If no Ulrika found, use first person
-    if (!rootId) {
-        rootId = Object.keys(individuals)[0];
-    }
+    // Use the first person in the file as root
+    const rootId = Object.keys(individuals)[0];
 
     console.log(`Using ${individuals[rootId]?.name || rootId} as root person`);
     console.log(`Calculating relationships using tree traversal...`);

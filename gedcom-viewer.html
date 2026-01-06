@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GEDCOM Viewer - Svedström Family Tree</title>
+    <title>GEDCOM Viewer - Family Tree</title>
     <style>
         * {
             margin: 0;
@@ -309,7 +309,7 @@
 
 <body>
     <div class="container">
-        <h1>🌳 Svedström Family Tree</h1>
+        <h1 id="pageTitle">🌳 Family Tree</h1>
 
         <div style="text-align: center; margin-bottom: 20px;">
             <button id="saveBtn" onclick="saveGedcom()"
@@ -351,11 +351,14 @@
         let filteredPersons = [];
         let originalGedcomText = '';
         let hasChanges = false;
+        let familyName = '';
+        let fileName = '';
 
         // Handle file selection
         document.getElementById('fileInput').addEventListener('change', function (e) {
             const file = e.target.files[0];
             if (file) {
+                fileName = file.name.replace('.ged', '');
                 document.getElementById('personList').innerHTML = '<div class="loading">Loading GEDCOM file...</div>';
                 const reader = new FileReader();
                 reader.onload = function (event) {
@@ -375,6 +378,7 @@
             const lines = text.split('\n');
             const individuals = {};
             const families = {};
+            let firstPersonId = null;
 
             let currentEntity = null;
             let currentType = null;
@@ -396,6 +400,11 @@
                         currentType = parts[2];
 
                         if (currentType === 'INDI') {
+                            // Track the first person in the file
+                            if (firstPersonId === null) {
+                                firstPersonId = currentEntity;
+                            }
+
                             individuals[currentEntity] = {
                                 id: currentEntity,
                                 name: '',
@@ -500,6 +509,23 @@
             allPersons = Object.values(individuals)
                 .filter(p => p.name)
                 .sort((a, b) => a.name.localeCompare(b.name));
+
+            // Extract family name from the first person in the file (root person)
+            familyName = '';
+            if (firstPersonId && individuals[firstPersonId]) {
+                familyName = individuals[firstPersonId].surname;
+            }
+
+            // If no surname found, try to get from file name
+            if (!familyName && fileName) {
+                familyName = fileName.split('_')[0];
+            }
+
+            // Update page title
+            if (familyName) {
+                document.getElementById('pageTitle').textContent = `🌳 ${familyName} Family Tree`;
+                document.title = `GEDCOM Viewer - ${familyName} Family Tree`;
+            }
 
             filteredPersons = allPersons;
             displayPersons();
@@ -943,7 +969,8 @@
             // Add timestamp to filename
             const now = new Date();
             const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
-            a.download = `Svedström_släktträd_${timestamp}.ged`;
+            const baseFileName = fileName || (familyName ? `${familyName}_släktträd` : 'family_tree');
+            a.download = `${baseFileName}_${timestamp}.ged`;
 
             document.body.appendChild(a);
             a.click();
