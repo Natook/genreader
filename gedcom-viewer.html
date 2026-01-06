@@ -310,7 +310,6 @@
 <body>
     <div class="container">
         <h1>🌳 Svedström Family Tree</h1>
-        <p class="subtitle">GEDCOM Viewer</p>
 
         <div style="text-align: center; margin-bottom: 20px;">
             <button id="saveBtn" onclick="saveGedcom()"
@@ -544,22 +543,22 @@
             const container = document.getElementById('onThisDay');
             const displayDate = new Date(2000, todayMonth - 1, todayDay); // Use a placeholder year for formatting
 
-            const monthNames = ['januari', 'februari', 'mars', 'april', 'maj', 'juni', 
-                                'juli', 'augusti', 'september', 'oktober', 'november', 'december'];
+            const monthNames = ['januari', 'februari', 'mars', 'april', 'maj', 'juni',
+                'juli', 'augusti', 'september', 'oktober', 'november', 'december'];
             const dateText = `${todayDay} ${monthNames[todayMonth - 1]}`;
 
             const datePickerHTML = `
                 <div class="date-picker-container">
                     <label>Välj datum:</label>
                     <select id="monthPicker" onchange="handleDateChange()">
-                        ${monthNames.map((month, i) => 
-                            `<option value="${i + 1}" ${i + 1 === todayMonth ? 'selected' : ''}>${month}</option>`
-                        ).join('')}
+                        ${monthNames.map((month, i) =>
+                `<option value="${i + 1}" ${i + 1 === todayMonth ? 'selected' : ''}>${month}</option>`
+            ).join('')}
                     </select>
                     <select id="dayPicker" onchange="handleDateChange()">
-                        ${Array.from({length: 31}, (_, i) => i + 1).map(day => 
-                            `<option value="${day}" ${day === todayDay ? 'selected' : ''}>${day}</option>`
-                        ).join('')}
+                        ${Array.from({ length: 31 }, (_, i) => i + 1).map(day =>
+                `<option value="${day}" ${day === todayDay ? 'selected' : ''}>${day}</option>`
+            ).join('')}
                     </select>
                     <button onclick="displayOnThisDay()">Idag</button>
                 </div>
@@ -694,11 +693,13 @@
             if (!person) return;
 
             const relationshipClass = person.relationship === 'Jag' ? 'relationship-me' : '';
-            const relationshipBadge = person.relationship ? `<div class="relationship-badge ${relationshipClass}" style="display: inline-block; margin-left: 10px;">${person.relationship}</div>` : '';
+            const relationshipBadge = person.relationship ? `<div class="relationship-badge ${relationshipClass}" style="display: inline-block;">${person.relationship}</div>` : '';
 
             let detailHTML = `
-                <h2>${person.name}${relationshipBadge}</h2>
+                <h2>${person.name}</h2>
                 <div style="margin-top: 20px;">
+                    ${relationshipBadge ? `<p><strong>${relationshipBadge}</strong> </p>` : ''}
+                    </br>    
                     <p><strong>Gender:</strong> ${person.sex === 'M' ? 'Male' : person.sex === 'F' ? 'Female' : 'Unknown'}</p>
                     ${person.birth.date ? `<p><strong>Birth Date:</strong> ${person.birth.date}</p>` : ''}
                     ${person.birth.place ? `<p><strong>Birth Place:</strong> ${person.birth.place}</p>` : ''}
