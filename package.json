@@ -1,0 +1,33 @@
+{
+    "name": "gedcom-viewer",
+    "version": "1.0.0",
+    "description": "Multi-user GEDCOM family tree viewer with authentication",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js",
+        "init-db": "node init-db.js",
+        "dev": "nodemon server.js"
+    },
+    "keywords": [
+        "gedcom",
+        "family-tree",
+        "genealogy"
+    ],
+    "author": "",
+    "license": "MIT",
+    "dependencies": {
+        "bcrypt": "^5.1.1",
+        "connect-pg-simple": "^10.0.0",
+        "dotenv": "^16.4.7",
+        "express": "^4.21.2",
+        "express-session": "^1.18.1",
+        "multer": "^2.0.2",
+        "pg": "^8.13.1"
+    },
+    "devDependencies": {
+        "nodemon": "^3.1.9"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    }
+}

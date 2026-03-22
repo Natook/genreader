@@ -1,0 +1,9 @@
+node_modules
+npm - debug.log
+    .env
+    *.ged
+uploads /
+.git
+        .gitignore
+        .DS_Store
+README.md

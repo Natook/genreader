@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GEDCOM Viewer - Family Tree</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .header {
+            max-width: 1200px;
+            margin: 0 auto 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 2em;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .user-name {
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        .logout-btn {
+            padding: 10px 20px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+
+        .logout-btn:hover {
+            background: #c82333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 30px;
+        }
+
+        .file-management {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .file-management h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+
+        .upload-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 5px;
+            border: 2px dashed #ddd;
+        }
+
+        .upload-btn {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .upload-btn:hover {
+            opacity: 0.9;
+        }
+
+        .file-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        .file-item {
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .file-item.selected {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .file-name {
+            font-weight: bold;
+            color: #333;
+            word-break: break-word;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .select-btn {
+            flex: 1;
+            padding: 8px 12px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .select-btn:hover {
+            background: #5568d3;
+        }
+
+        .delete-btn {
+            padding: 8px 12px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .delete-btn:hover {
+            background: #c82333;
+        }
+
+        .viewer-section {
+            display: none;
+        }
+
+        .viewer-section.active {
+            display: block;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            text-align: center;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+
+        .search-box {
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        #searchInput {
+            width: 100%;
+            padding: 15px 20px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            transition: border-color 0.3s;
+        }
+
+        #searchInput:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .person-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .person-card {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            background: #fafafa;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .person-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+            background: white;
+        }
+
+        .person-name {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .person-info {
+            color: #666;
+            font-size: 0.95em;
+            line-height: 1.6;
+        }
+
+        .person-info strong {
+            color: #444;
+        }
+
+        .gender-icon {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+
+        .gender-M {
+            background: #4A90E2;
+        }
+
+        .gender-F {
+            background: #E24A90;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 1.2em;
+            color: #666;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 50px;
+            color: #999;
+            font-size: 1.1em;
+        }
+
+        .detail-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .detail-modal.active {
+            display: flex;
+        }
+
+        .detail-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            font-size: 28px;
+            cursor: pointer;
+            color: #999;
+            background: none;
+            border: none;
+        }
+
+        .close-btn:hover {
+            color: #333;
+        }
+
+        .edit-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        .edit-btn:hover {
+            background: #5568d3;
+        }
+
+        .note-textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-family: inherit;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .btn-save {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .btn-cancel {
+            background: #999;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .person-link {
+            color: #667eea;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        .person-link:hover {
+            color: #5568d3;
+        }
+
+        .on-this-day {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .on-this-day h2 {
+            margin-bottom: 15px;
+            font-size: 1.5em;
+            color: white;
+        }
+
+        .date-picker-container {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .date-picker-container label {
+            font-weight: bold;
+            color: white;
+        }
+
+        .date-picker-container select {
+            padding: 8px 12px;
+            border-radius: 5px;
+            border: none;
+            font-size: 14px;
+            background: white;
+            color: #333;
+            cursor: pointer;
+        }
+
+        .date-picker-container button {
+            padding: 8px 15px;
+            border-radius: 5px;
+            border: none;
+            background: rgba(255, 255, 255, 0.3);
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .date-picker-container button:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        .event-item {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .event-item:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateX(5px);
+        }
+
+        .event-type {
+            font-weight: bold;
+            margin-right: 5px;
+        }
+
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 12px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>🌳 GEDCOM Viewer</h1>
+        <div class="user-info">
+            <span class="user-name" id="userName">Loading...</span>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="file-management">
+            <h2>📁 Your Files</h2>
+
+            <div class="upload-section">
+                <input type="file" id="fileInput" accept=".ged" style="display: none;">
+                <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                    📤 Upload GEDCOM File
+                </button>
+                <span id="uploadStatus" style="margin-left: 15px; color: #666;"></span>
+            </div>
+
+            <div id="fileList" class="file-list">
+                <div class="loading">Loading your files...</div>
+            </div>
+        </div>
+
+        <div class="viewer-section" id="viewerSection">
+            <h1 id="pageTitle">🌳 Family Tree</h1>
+
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search by name...">
+            </div>
+
+            <div id="onThisDay"></div>
+
+            <div class="person-list" id="personList">
+                <div class="no-results">Select a file to view</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="detail-modal" id="detailModal">
+        <div class="detail-content" id="detailContent">
+            <button class="close-btn" onclick="closeDetail()">&times;</button>
+            <div id="detailBody"></div>
+        </div>
+    </div>
+
+    <script>
+        let allPersons = [];
+        let filteredPersons = [];
+        let currentUser = null;
+        let userFiles = [];
+        let selectedFileId = null;
+        let familyName = '';
+        let fileName = '';
+        let gedcomFamilies = {};
+
+        // Check authentication on page load
+        async function checkAuth() {
+            try {
+                const response = await fetch('/api/user');
+                if (!response.ok) {
+                    window.location.href = '/';
+                    return;
+                }
+                const data = await response.json();
+                currentUser = data;
+                document.getElementById('userName').textContent = data.name;
+                loadUserFiles();
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                window.location.href = '/';
+            }
+        }
+
+        // Logout function
+        async function logout() {
+            try {
+                await fetch('/api/logout', { method: 'POST' });
+                window.location.href = '/';
+            } catch (error) {
+                console.error('Logout failed:', error);
+                window.location.href = '/';
+            }
+        }
+
+        // Load user's files
+        async function loadUserFiles() {
+            try {
+                const response = await fetch('/api/files');
+                if (!response.ok) throw new Error('Failed to load files');
+
+                const data = await response.json();
+                userFiles = data.files || [];
+                displayFileList();
+            } catch (error) {
+                console.error('Error loading files:', error);
+                document.getElementById('fileList').innerHTML =
+                    '<div class="error-message">Failed to load files. Please try again.</div>';
+            }
+        }
+
+        // Display file list
+        function displayFileList() {
+            const fileList = document.getElementById('fileList');
+
+            if (userFiles.length === 0) {
+                fileList.innerHTML = '<div class="no-results">No files uploaded yet. Upload your first GEDCOM file!</div>';
+                return;
+            }
+
+            const html = userFiles.map(file => {
+                const isSelected = file.id === selectedFileId;
+                const displayName = file.original_name || file.filename;
+                return `
+                    <div class="file-item ${isSelected ? 'selected' : ''}" data-file-id="${file.id}">
+                        <div class="file-name">📄 ${displayName}</div>
+                        <div class="file-actions">
+                            <button class="select-btn" onclick="selectFile(${file.id}, '${file.filename}')">
+                                ${isSelected ? '✓ Selected' : 'View'}
+                            </button>
+                            <button class="delete-btn" onclick="deleteFile(${file.id})">🗑️</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            fileList.innerHTML = html;
+        }
+
+        // Handle file upload
+        document.getElementById('fileInput').addEventListener('change', async function (e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            document.getElementById('uploadStatus').textContent = 'Uploading...';
+            document.getElementById('uploadStatus').style.color = '#666';
+
+            const formData = new FormData();
+            formData.append('gedcomFile', file);
+
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Upload failed');
+                }
+
+                const result = await response.json();
+                document.getElementById('uploadStatus').textContent = '✓ Uploaded successfully!';
+                document.getElementById('uploadStatus').style.color = '#4CAF50';
+
+                // Reload file list
+                await loadUserFiles();
+
+                // Clear status after 3 seconds
+                setTimeout(() => {
+                    document.getElementById('uploadStatus').textContent = '';
+                }, 3000);
+
+                // Clear file input
+                e.target.value = '';
+            } catch (error) {
+                console.error('Upload error:', error);
+                document.getElementById('uploadStatus').textContent = '✗ ' + error.message;
+                document.getElementById('uploadStatus').style.color = '#dc3545';
+            }
+        });
+
+        // Select and load a file
+        async function selectFile(fileId, filename) {
+            selectedFileId = fileId;
+            fileName = filename.replace('.ged', '');
+            displayFileList();
+
+            document.getElementById('personList').innerHTML = '<div class="loading">Loading GEDCOM file...</div>';
+
+            try {
+                const response = await fetch(`/api/files/${filename}`);
+                if (!response.ok) throw new Error('Failed to load file');
+
+                const gedcomText = await response.text();
+                parseGedcom(gedcomText);
+
+                document.getElementById('viewerSection').classList.add('active');
+                displayOnThisDay();
+            } catch (error) {
+                console.error('Error loading file:', error);
+                document.getElementById('personList').innerHTML =
+                    '<div class="error-message">Failed to load file. Please try again.</div>';
+            }
+        }
+
+        // Delete a file
+        async function deleteFile(fileId) {
+            if (!confirm('Are you sure you want to delete this file?')) return;
+
+            try {
+                const response = await fetch(`/api/files/${fileId}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) throw new Error('Failed to delete file');
+
+                // If deleted file was selected, clear viewer
+                if (fileId === selectedFileId) {
+                    selectedFileId = null;
+                    document.getElementById('viewerSection').classList.remove('active');
+                    allPersons = [];
+                    filteredPersons = [];
+                }
+
+                // Reload file list
+                await loadUserFiles();
+            } catch (error) {
+                console.error('Delete error:', error);
+                alert('Failed to delete file. Please try again.');
+            }
+        }
+
+        function parseGedcom(text) {
+            const lines = text.split('\n');
+            const individuals = {};
+            const families = {};
+            let firstPersonId = null;
+
+            let currentEntity = null;
+            let currentType = null;
+            let currentTag = null;
+            let currentNote = null;
+
+            for (let line of lines) {
+                line = line.trim();
+                if (!line) continue;
+
+                const parts = line.split(' ');
+                const level = parseInt(parts[0]);
+                const tag = parts[1];
+                const value = parts.slice(2).join(' ');
+
+                if (level === 0) {
+                    if (tag.startsWith('@') && tag.endsWith('@')) {
+                        currentEntity = tag;
+                        currentType = parts[2];
+
+                        if (currentType === 'INDI') {
+                            // Track the first person in the file
+                            if (firstPersonId === null) {
+                                firstPersonId = currentEntity;
+                            }
+
+                            individuals[currentEntity] = {
+                                id: currentEntity,
+                                name: '',
+                                givenName: '',
+                                surname: '',
+                                sex: '',
+                                birth: { date: '', place: '' },
+                                death: { date: '', place: '' },
+                                families: [],
+                                parentFamily: null,
+                                notes: [],
+                                relationship: ''
+                            };
+                        } else if (currentType === 'FAM') {
+                            families[currentEntity] = {
+                                id: currentEntity,
+                                husband: '',
+                                wife: '',
+                                children: []
+                            };
+                        }
+                    }
+                    currentTag = null;
+                } else if (level === 1 && currentEntity) {
+                    // Save previous note if switching tags
+                    if (currentNote !== null && tag !== 'CONC' && tag !== 'CONT' && tag !== 'NOTE') {
+                        if (currentType === 'INDI') {
+                            let cleanNote = currentNote.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&ouml;/g, 'ö').replace(/&aring;/g, 'å').replace(/&auml;/g, 'ä').replace(/&Ouml;/g, 'Ö').replace(/&Aring;/g, 'Å').replace(/&Auml;/g, 'Ä').replace(/&ndash;/g, '–').replace(/&amp;/g, '&').trim();
+                            if (cleanNote) {
+                                individuals[currentEntity].notes.push(cleanNote);
+                            }
+                        }
+                        currentNote = null;
+                    }
+
+                    currentTag = tag;
+
+                    if (currentType === 'INDI') {
+                        if (tag === 'NAME') {
+                            individuals[currentEntity].name = value.replace(/\//g, '');
+                        } else if (tag === 'SEX') {
+                            individuals[currentEntity].sex = value;
+                        } else if (tag === 'NOTE') {
+                            currentNote = value;
+                        } else if (tag === '_RELA') {
+                            individuals[currentEntity].relationship = value;
+                        } else if (tag === 'FAMS') {
+                            individuals[currentEntity].families.push(value);
+                        } else if (tag === 'FAMC') {
+                            individuals[currentEntity].parentFamily = value;
+                        }
+                    } else if (currentType === 'FAM') {
+                        if (tag === 'HUSB') {
+                            families[currentEntity].husband = value;
+                        } else if (tag === 'WIFE') {
+                            families[currentEntity].wife = value;
+                        } else if (tag === 'CHIL') {
+                            families[currentEntity].children.push(value);
+                        }
+                    }
+                } else if (level === 2 && currentEntity) {
+                    if (tag === 'CONC') {
+                        // Concatenate to current note without space
+                        if (currentNote !== null) {
+                            currentNote += value;
+                        }
+                    } else if (tag === 'CONT') {
+                        // Continue with a new line
+                        if (currentNote !== null) {
+                            currentNote += ' ' + value;
+                        }
+                    } else if (currentType === 'INDI') {
+                        if (tag === 'GIVN') {
+                            individuals[currentEntity].givenName = value;
+                        } else if (tag === 'SURN') {
+                            individuals[currentEntity].surname = value;
+                        } else if (currentTag === 'BIRT' && tag === 'DATE') {
+                            individuals[currentEntity].birth.date = value;
+                        } else if (currentTag === 'BIRT' && tag === 'PLAC') {
+                            individuals[currentEntity].birth.place = value;
+                        } else if (currentTag === 'DEAT' && tag === 'DATE') {
+                            individuals[currentEntity].death.date = value;
+                        } else if (currentTag === 'DEAT' && tag === 'PLAC') {
+                            individuals[currentEntity].death.place = value;
+                        }
+                    }
+                }
+            }
+
+            // Save any remaining note
+            if (currentNote !== null && currentEntity && currentType === 'INDI') {
+                let cleanNote = currentNote.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&ouml;/g, 'ö').replace(/&aring;/g, 'å').replace(/&auml;/g, 'ä').replace(/&Ouml;/g, 'Ö').replace(/&Aring;/g, 'Å').replace(/&Auml;/g, 'Ä').replace(/&ndash;/g, '–').replace(/&amp;/g, '&').trim();
+                if (cleanNote) {
+                    individuals[currentEntity].notes.push(cleanNote);
+                }
+            }
+
+            // Store families info for later use
+            gedcomFamilies = families;
+
+            // Convert to array and sort by name
+            allPersons = Object.values(individuals)
+                .filter(p => p.name)
+                .sort((a, b) => a.name.localeCompare(b.name));
+
+            // Extract family name from the first person in the file (root person)
+            familyName = '';
+            if (firstPersonId && individuals[firstPersonId]) {
+                familyName = individuals[firstPersonId].surname;
+            }
+
+            // If no surname found, try to get from file name
+            if (!familyName && fileName) {
+                familyName = fileName.split('_')[0];
+            }
+
+            // Update page title
+            if (familyName) {
+                document.getElementById('pageTitle').textContent = `🌳 ${familyName} Family Tree`;
+                document.title = `GEDCOM Viewer - ${familyName} Family Tree`;
+            }
+
+            filteredPersons = allPersons;
+            displayPersons();
+        }
+
+        function displayOnThisDay(selectedMonth, selectedDay) {
+            const today = new Date();
+            const todayMonth = selectedMonth !== undefined ? selectedMonth : today.getMonth() + 1;
+            const todayDay = selectedDay !== undefined ? selectedDay : today.getDate();
+
+            const events = [];
+
+            allPersons.forEach(person => {
+                // Check birth date
+                if (person.birth.date) {
+                    const birthDate = parseGedcomDate(person.birth.date);
+                    if (birthDate && birthDate.month === todayMonth && birthDate.day === todayDay) {
+                        events.push({
+                            type: 'birth',
+                            person: person,
+                            year: birthDate.year,
+                            yearsAgo: birthDate.year ? today.getFullYear() - birthDate.year : null
+                        });
+                    }
+                }
+
+                // Check death date
+                if (person.death.date) {
+                    const deathDate = parseGedcomDate(person.death.date);
+                    if (deathDate && deathDate.month === todayMonth && deathDate.day === todayDay) {
+                        events.push({
+                            type: 'death',
+                            person: person,
+                            year: deathDate.year,
+                            yearsAgo: deathDate.year ? today.getFullYear() - deathDate.year : null
+                        });
+                    }
+                }
+            });
+
+            const container = document.getElementById('onThisDay');
+            const displayDate = new Date(2000, todayMonth - 1, todayDay);
+
+            const monthNames = ['januari', 'februari', 'mars', 'april', 'maj', 'juni',
+                'juli', 'augusti', 'september', 'oktober', 'november', 'december'];
+            const dateText = `${todayDay} ${monthNames[todayMonth - 1]}`;
+
+            const datePickerHTML = `
+                <div class="date-picker-container">
+                    <label>Välj datum:</label>
+                    <select id="monthPicker" onchange="handleDateChange()">
+                        ${monthNames.map((month, i) =>
+                `<option value="${i + 1}" ${i + 1 === todayMonth ? 'selected' : ''}>${month}</option>`
+            ).join('')}
+                    </select>
+                    <select id="dayPicker" onchange="handleDateChange()">
+                        ${Array.from({ length: 31 }, (_, i) => i + 1).map(day =>
+                `<option value="${day}" ${day === todayDay ? 'selected' : ''}>${day}</option>`
+            ).join('')}
+                    </select>
+                    <button onclick="displayOnThisDay()">Idag</button>
+                </div>
+            `;
+
+            if (events.length === 0) {
+                let html = '<div class="on-this-day">';
+                html += `<h2>🎉 På denna dag - ${dateText}</h2>`;
+                html += datePickerHTML;
+                html += '<p style="background: rgba(255, 255, 255, 0.2); padding: 12px; border-radius: 5px;">Inga födelsedagar eller dödsdatum registrerade detta datum.</p>';
+                html += '</div>';
+                container.innerHTML = html;
+                container.style.display = 'block';
+                return;
+            }
+
+            // Sort by year (oldest first)
+            events.sort((a, b) => (a.year || 9999) - (b.year || 9999));
+
+            let html = '<div class="on-this-day">';
+            html += `<h2>🎉 På denna dag - ${dateText}</h2>`;
+            html += datePickerHTML;
+
+            events.forEach(event => {
+                const emoji = event.type === 'birth' ? '🎂' : '🕊️';
+                const action = event.type === 'birth' ? 'föddes' : 'gick bort';
+                const yearsAgoText = event.yearsAgo ? ` (för ${event.yearsAgo} år sedan)` : '';
+                const yearText = event.year || '?';
+
+                html += `
+                    <div class="event-item" onclick="showDetail('${event.person.id}')">
+                        <span class="event-type">${emoji} ${yearText}${yearsAgoText}:</span>
+                        ${event.person.name} ${action}
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+            container.style.display = 'block';
+        }
+
+        function handleDateChange() {
+            const month = parseInt(document.getElementById('monthPicker').value);
+            const day = parseInt(document.getElementById('dayPicker').value);
+            displayOnThisDay(month, day);
+        }
+
+        function parseGedcomDate(dateStr) {
+            // GEDCOM dates can be in formats like:
+            // "17 JUN 1874", "JUN 1874", "1874", "29 FEB 1976"
+            if (!dateStr) return null;
+
+            const months = {
+                'JAN': 1, 'FEB': 2, 'MAR': 3, 'APR': 4, 'MAY': 5, 'JUN': 6,
+                'JUL': 7, 'AUG': 8, 'SEP': 9, 'OCT': 10, 'NOV': 11, 'DEC': 12
+            };
+
+            const parts = dateStr.trim().split(' ');
+            let day = null, month = null, year = null;
+
+            if (parts.length === 3) {
+                // "17 JUN 1874"
+                day = parseInt(parts[0]);
+                month = months[parts[1].toUpperCase()];
+                year = parseInt(parts[2]);
+            } else if (parts.length === 2) {
+                // Could be "JUN 1874" or "17 JUN"
+                if (months[parts[0].toUpperCase()]) {
+                    month = months[parts[0].toUpperCase()];
+                    year = parseInt(parts[1]);
+                } else {
+                    day = parseInt(parts[0]);
+                    month = months[parts[1].toUpperCase()];
+                }
+            } else if (parts.length === 1) {
+                // Just year "1874"
+                year = parseInt(parts[0]);
+            }
+
+            return { day, month, year };
+        }
+
+        function displayPersons() {
+            const listElement = document.getElementById('personList');
+
+            if (filteredPersons.length === 0) {
+                listElement.innerHTML = '<div class="no-results">No persons found</div>';
+                return;
+            }
+
+            const html = filteredPersons.map(person => {
+                const birthInfo = person.birth.date || person.birth.place
+                    ? `${person.birth.date} ${person.birth.place}`.trim()
+                    : 'Unknown';
+
+                const deathInfo = person.death.date || person.death.place
+                    ? `${person.death.date} ${person.death.place}`.trim()
+                    : '';
+
+                const lifespan = deathInfo ? `${birthInfo} - ${deathInfo}` : `Born: ${birthInfo}`;
+
+                const genderClass = person.sex ? `gender-${person.sex}` : '';
+
+                const notesHtml = person.notes && person.notes.length > 0
+                    ? `<div class="person-info" style="margin-top: 8px; font-style: italic; color: #555;">📝 ${person.notes[0].substring(0, 100)}${person.notes[0].length > 100 ? '...' : ''}</div>`
+                    : '';
+
+                const relationshipClass = person.relationship === 'Jag' ? 'relationship-me' : '';
+                const relationshipHtml = person.relationship ? `<div class="relationship-badge ${relationshipClass}">${person.relationship}</div>` : '';
+
+                return `
+                    <div class="person-card" onclick="showDetail('${person.id}')">
+                        <div class="person-name">
+                            ${person.name}
+                            ${person.sex ? `<span class="gender-icon ${genderClass}"></span>` : ''}
+                        </div>
+                        <div class="person-info">
+                            ${lifespan}
+                        </div>
+                        ${notesHtml}
+                        ${relationshipHtml}
+                    </div>
+                `;
+            }).join('');
+
+            listElement.innerHTML = html;
+        }
+
+        function showDetail(personId) {
+            const person = allPersons.find(p => p.id === personId);
+            if (!person) return;
+
+            const relationshipClass = person.relationship === 'Jag' ? 'relationship-me' : '';
+            const relationshipBadge = person.relationship ? `<div class="relationship-badge ${relationshipClass}" style="display: inline-block;">${person.relationship}</div>` : '';
+
+            let detailHTML = `
+                <h2>${person.name}</h2>
+                <div style="margin-top: 20px;">
+                    ${relationshipBadge ? `<p><strong>${relationshipBadge}</strong> </p>` : ''}
+                    </br>    
+                    <p><strong>Gender:</strong> ${person.sex === 'M' ? 'Male' : person.sex === 'F' ? 'Female' : 'Unknown'}</p>
+                    ${person.birth.date ? `<p><strong>Birth Date:</strong> ${person.birth.date}</p>` : ''}
+                    ${person.birth.place ? `<p><strong>Birth Place:</strong> ${person.birth.place}</p>` : ''}
+                    ${person.death.date ? `<p><strong>Death Date:</strong> ${person.death.date}</p>` : ''}
+                    ${person.death.place ? `<p><strong>Death Place:</strong> ${person.death.place}</p>` : ''}
+            `;
+
+            // Display notes if available
+            if (person.notes && person.notes.length > 0) {
+                detailHTML += '<h3 style="margin-top: 20px;">Notes:</h3><div id="notesContainer">';
+                person.notes.forEach((note, index) => {
+                    detailHTML += `
+                        <div id="note-${index}" style="margin: 10px 0;">
+                            <p style="background: #f5f5f5; padding: 10px; border-radius: 5px; white-space: pre-wrap;">${note}</p>
+                        </div>
+                    `;
+                });
+                detailHTML += '</div>';
+            } else {
+                detailHTML += '<h3 style="margin-top: 20px;">Notes:</h3><div id="notesContainer"><p style="color: #999;">No notes available</p></div>';
+            }
+
+            // Get family information
+            if (person.parentFamily && gedcomFamilies[person.parentFamily]) {
+                const family = gedcomFamilies[person.parentFamily];
+                detailHTML += '<h3 style="margin-top: 20px;">Parents:</h3>';
+
+                if (family.husband) {
+                    const father = allPersons.find(p => p.id === family.husband);
+                    if (father) detailHTML += `<p>Father: <span class="person-link" onclick="showDetail('${father.id}')">${father.name}</span></p>`;
+                }
+
+                if (family.wife) {
+                    const mother = allPersons.find(p => p.id === family.wife);
+                    if (mother) detailHTML += `<p>Mother: <span class="person-link" onclick="showDetail('${mother.id}')">${mother.name}</span></p>`;
+                }
+            }
+
+            // Get spouse and children
+            if (person.families && person.families.length > 0) {
+                person.families.forEach(famId => {
+                    const family = gedcomFamilies[famId];
+                    if (family) {
+                        detailHTML += '<h3 style="margin-top: 20px;">Family:</h3>';
+
+                        const spouseId = person.sex === 'M' ? family.wife : family.husband;
+                        if (spouseId) {
+                            const spouse = allPersons.find(p => p.id === spouseId);
+                            if (spouse) detailHTML += `<p>Spouse: <span class="person-link" onclick="showDetail('${spouse.id}')">${spouse.name}</span></p>`;
+                        }
+
+                        if (family.children && family.children.length > 0) {
+                            detailHTML += '<p><strong>Children:</strong></p><ul>';
+                            family.children.forEach(childId => {
+                                const child = allPersons.find(p => p.id === childId);
+                                if (child) detailHTML += `<li><span class="person-link" onclick="showDetail('${child.id}')">${child.name}</span></li>`;
+                            });
+                            detailHTML += '</ul>';
+                        }
+                    }
+                });
+            }
+
+            detailHTML += '</div>';
+
+            document.getElementById('detailBody').innerHTML = detailHTML;
+            document.getElementById('detailModal').classList.add('active');
+        }
+
+        function closeDetail() {
+            document.getElementById('detailModal').classList.remove('active');
+        }
+
+        // Search functionality
+        document.getElementById('searchInput').addEventListener('input', function (e) {
+            const searchTerm = e.target.value.toLowerCase();
+
+            if (searchTerm === '') {
+                filteredPersons = allPersons;
+            } else {
+                filteredPersons = allPersons.filter(person =>
+                    person.name.toLowerCase().includes(searchTerm) ||
+                    person.givenName.toLowerCase().includes(searchTerm) ||
+                    person.surname.toLowerCase().includes(searchTerm)
+                );
+            }
+
+            displayPersons();
+        });
+
+        // Close modal on click outside
+        document.getElementById('detailModal').addEventListener('click', function (e) {
+            if (e.target === this) {
+                closeDetail();
+            }
+        });
+
+        // Initialize app
+        checkAuth();
+    </script>
+</body>
+
+</html>
