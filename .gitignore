@@ -9,6 +9,12 @@ package-lock.json
 .env.local
 .env.production
 
+# Database files
+data/
+*.db
+*.db-shm
+*.db-wal
+
 # User uploads
 uploads/
 

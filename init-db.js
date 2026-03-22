@@ -1,58 +1,46 @@
 require('dotenv').config();
-const { Pool } = require('pg');
+const sqlite3 = require('sqlite3').verbose();
 const fs = require('fs');
 const path = require('path');
 
-async function initDatabase() {
-    const dbUrl = new URL(process.env.DATABASE_URL);
-    const dbName = dbUrl.pathname.slice(1); // Remove leading slash
+function initDatabase() {
+    // Ensure data directory exists
+    const dataDir = path.join(__dirname, 'data');
+    if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+        console.log('Created data directory');
+    }
 
-    // First, connect to the default 'postgres' database to create our database if needed
-    const defaultDbUrl = new URL(process.env.DATABASE_URL);
-    defaultDbUrl.pathname = '/postgres';
+    // Create/open database
+    const dbPath = path.join(dataDir, 'gedcom.db');
+    console.log(`Initializing database at ${dbPath}...`);
 
-    const defaultPool = new Pool({
-        connectionString: defaultDbUrl.toString(),
-        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+    const db = new sqlite3.Database(dbPath, (err) => {
+        if (err) {
+            console.error('❌ Database initialization failed:', err.message);
+            process.exit(1);
+        }
     });
 
-    try {
-        console.log(`Checking if database '${dbName}' exists...`);
+    // Read and execute schema
+    console.log('Creating tables...');
+    const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
 
-        // Check if database exists
-        const result = await defaultPool.query(
-            "SELECT 1 FROM pg_database WHERE datname = $1",
-            [dbName]
-        );
-
-        if (result.rows.length === 0) {
-            console.log(`Creating database '${dbName}'...`);
-            await defaultPool.query(`CREATE DATABASE ${dbName}`);
-            console.log('Database created successfully!');
-        } else {
-            console.log('Database already exists.');
+    db.exec(schema, (err) => {
+        if (err) {
+            console.error('❌ Database initialization failed:', err.message);
+            db.close();
+            process.exit(1);
         }
 
-        await defaultPool.end();
-
-        // Now connect to the actual database to create tables
-        const pool = new Pool({
-            connectionString: process.env.DATABASE_URL,
-            ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+        db.close((err) => {
+            if (err) {
+                console.error('Error closing database:', err.message);
+            }
+            console.log('✅ Database initialized successfully!');
+            process.exit(0);
         });
-
-        console.log('Creating tables...');
-        const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
-        await pool.query(schema);
-
-        await pool.end();
-
-        console.log('✅ Database initialized successfully!');
-        process.exit(0);
-    } catch (error) {
-        console.error('❌ Database initialization failed:', error.message);
-        process.exit(1);
-    }
+    });
 }
 
 initDatabase();

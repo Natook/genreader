@@ -16,7 +16,7 @@ A web-based GEDCOM family tree viewer with user authentication, allowing multipl
 ## Technology Stack
 
 - **Backend**: Node.js with Express
-- **Database**: PostgreSQL
+- **Database**: SQLite (file-based, no server needed)
 - **Authentication**: bcrypt + express-session
 - **File Upload**: Multer
 - **Frontend**: Vanilla JavaScript
@@ -27,7 +27,7 @@ A web-based GEDCOM family tree viewer with user authentication, allowing multipl
 ### Prerequisites
 
 - Node.js 18 or higher
-- PostgreSQL database
+- No database server needed! (Uses SQLite)
 
 ### Setup
 
@@ -39,7 +39,6 @@ npm install
 2. Set up environment variables:
 ```bash
 # Create a .env file or set these environment variables
-DATABASE_URL=postgresql://user:password@localhost:5432/gedcom_viewer
 SESSION_SECRET=your-secret-key-here
 NODE_ENV=development
 PORT=3000
@@ -66,45 +65,28 @@ npm run dev
 
 ### Steps
 
-1. **Create a Fly.io app** (if not already created):
+1. **Create a Fly.io app**:
 ```bash
-fly launch --no-deploy
+fly launch
 ```
 
-2. **Create a PostgreSQL database**:
-```bash
-fly postgres create
-```
+When prompted:
+- Say **NO** to PostgreSQL (we use SQLite now - it's free!)
+- Accept other defaults or customize as needed
 
-Follow the prompts to create the database. Note the connection string.
-
-3. **Attach the database to your app**:
-```bash
-fly postgres attach <your-postgres-app-name>
-```
-
-This automatically sets the DATABASE_URL secret.
-
-4. **Set the session secret**:
+2. **Set the session secret**:
 ```bash
 fly secrets set SESSION_SECRET=$(openssl rand -hex 32)
 ```
 
-5. **Initialize the database** (one-time setup):
-```bash
-fly ssh console
-node init-db.js
-exit
-```
-
-Or run it locally with the production DATABASE_URL.
-
-6. **Deploy the application**:
+3. **Deploy the application**:
 ```bash
 fly deploy
 ```
 
-7. **Open your app**:
+The database will be automatically initialized on first run and stored in persistent volumes (configured in fly.toml).
+
+4. **Open your app**:
 ```bash
 fly open
 ```
@@ -163,13 +145,20 @@ fly open
 - Files are stored per-user and access is restricted
 - HTTPS is enforced in production
 - SQL injection protection via parameterized queries
+- Database is file-based SQLite - no network exposure
 
 ## Environment Variables
 
-- `DATABASE_URL` - PostgreSQL connection string
 - `SESSION_SECRET` - Secret key for session encryption
 - `NODE_ENV` - Environment (development/production)
 - `PORT` - Server port (default: 3000)
+
+## Data Storage
+
+- **Database**: Stored in `data/gedcom.db` (SQLite)
+- **Sessions**: Stored in `data/sessions.db` (SQLite)
+- **Uploads**: Stored in `uploads/` directory
+- **On Fly.io**: All data persists in mounted volumes (configured in fly.toml)
 
 ## Support
 

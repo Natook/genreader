@@ -3,11 +3,10 @@ const express = require('express');
 const session = require('express-session');
 const SqliteStore = require('connect-sqlite3')(session);
 const bcrypt = require('bcrypt');
-const sqlite3 = require('sqlite3').verbose();
+const Database = require('better-sqlite3');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { promisify } = require('util');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -20,20 +19,8 @@ if (!fs.existsSync(dataDir)) {
 
 // Database connection
 const dbPath = path.join(dataDir, 'gedcom.db');
-const db = new sqlite3.Database(dbPath);
-
-// Custom promisified database methods that preserve 'this'
-const dbRun = (sql, params = []) => {
-    return new Promise((resolve, reject) => {
-        db.run(sql, params, function (err) {
-            if (err) reject(err);
-            else resolve({ lastID: this.lastID, changes: this.changes });
-        });
-    });
-};
-
-const dbGet = promisify(db.get.bind(db));
-const dbAll = promisify(db.all.bind(db));
+const db = new Database(dbPath);
+db.pragma('journal_mode = WAL'); // Better performance for concurrent access
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -105,7 +92,7 @@ app.post('/api/register', async (req, res) => {
 
     try {
         // Check if user already exists
-        const existingUser = await dbGet('SELECT id FROM users WHERE email = ?', [email]);
+        const existingUser = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
 
         if (existingUser) {
             return res.status(400).json({ error: 'Email already registered' });
@@ -115,9 +102,9 @@ app.post('/api/register', async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
 
         // Create user
-        const result = await dbRun('INSERT INTO users (email, password, name) VALUES (?, ?, ?)',
-            [email, hashedPassword, name]);
-        const user = { id: result.lastID, email, name };
+        const stmt = db.prepare('INSERT INTO users (email, password, name) VALUES (?, ?, ?)');
+        const result = stmt.run(email, hashedPassword, name);
+        const user = { id: result.lastInsertRowid, email, name };
 
         req.session.userId = user.id;
         res.json({ success: true, user });
@@ -135,7 +122,7 @@ app.post('/api/login', async (req, res) => {
     }
 
     try {
-        const user = await dbGet('SELECT id, email, name, password FROM users WHERE email = ?', [email]);
+        const user = db.prepare('SELECT id, email, name, password FROM users WHERE email = ?').get(email);
 
         if (!user) {
             return res.status(401).json({ error: 'Invalid credentials' });
@@ -165,7 +152,7 @@ app.post('/api/logout', (req, res) => {
 
 app.get('/api/user', requireAuth, async (req, res) => {
     try {
-        const user = await dbGet('SELECT id, email, name FROM users WHERE id = ?', [req.session.userId]);
+        const user = db.prepare('SELECT id, email, name FROM users WHERE id = ?').get(req.session.userId);
 
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
@@ -188,9 +175,9 @@ app.post('/api/upload', requireAuth, upload.single('gedcomFile'), async (req, re
         const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
 
         // Save file info to database
-        const result = await dbRun('INSERT INTO files (user_id, filename, original_name, file_path) VALUES (?, ?, ?, ?)',
-            [req.session.userId, req.file.filename, originalName, req.file.path]);
-        const file = await dbGet('SELECT id, filename, original_name, uploaded_at FROM files WHERE id = ?', [result.lastID]);
+        const stmt = db.prepare('INSERT INTO files (user_id, filename, original_name, file_path) VALUES (?, ?, ?, ?)');
+        const result = stmt.run(req.session.userId, req.file.filename, originalName, req.file.path);
+        const file = db.prepare('SELECT id, filename, original_name, uploaded_at FROM files WHERE id = ?').get(result.lastInsertRowid);
 
         res.json({ success: true, file });
     } catch (error) {
@@ -201,8 +188,7 @@ app.post('/api/upload', requireAuth, upload.single('gedcomFile'), async (req, re
 
 app.get('/api/files', requireAuth, async (req, res) => {
     try {
-        const files = await dbAll('SELECT id, filename, original_name, uploaded_at FROM files WHERE user_id = ? ORDER BY uploaded_at DESC',
-            [req.session.userId]);
+        const files = db.prepare('SELECT id, filename, original_name, uploaded_at FROM files WHERE user_id = ? ORDER BY uploaded_at DESC').all(req.session.userId);
 
         res.json({ files });
     } catch (error) {
@@ -213,8 +199,7 @@ app.get('/api/files', requireAuth, async (req, res) => {
 
 app.get('/api/files/:filename', requireAuth, async (req, res) => {
     try {
-        const file = await dbGet('SELECT file_path FROM files WHERE user_id = ? AND filename = ?',
-            [req.session.userId, req.params.filename]);
+        const file = db.prepare('SELECT file_path FROM files WHERE user_id = ? AND filename = ?').get(req.session.userId, req.params.filename);
 
         if (!file) {
             return res.status(404).json({ error: 'File not found' });
@@ -229,8 +214,7 @@ app.get('/api/files/:filename', requireAuth, async (req, res) => {
 
 app.delete('/api/files/:id', requireAuth, async (req, res) => {
     try {
-        const file = await dbGet('SELECT file_path FROM files WHERE id = ? AND user_id = ?',
-            [req.params.id, req.session.userId]);
+        const file = db.prepare('SELECT file_path FROM files WHERE id = ? AND user_id = ?').get(req.params.id, req.session.userId);
 
         if (!file) {
             return res.status(404).json({ error: 'File not found' });
@@ -242,8 +226,7 @@ app.delete('/api/files/:id', requireAuth, async (req, res) => {
         }
 
         // Delete from database
-        await dbRun('DELETE FROM files WHERE id = ? AND user_id = ?',
-            [req.params.id, req.session.userId]);
+        db.prepare('DELETE FROM files WHERE id = ? AND user_id = ?').run(req.params.id, req.session.userId);
 
         res.json({ success: true });
     } catch (error) {

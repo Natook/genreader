@@ -1,0 +1,44 @@
+require('dotenv').config();
+const Database = require('better-sqlite3');
+const path = require('path');
+const fs = require('fs');
+
+function resetData() {
+    try {
+        const dataDir = path.join(__dirname, 'data');
+        const dbPath = path.join(dataDir, 'gedcom.db');
+
+        if (!fs.existsSync(dbPath)) {
+            console.log('Database does not exist. Nothing to reset.');
+            process.exit(0);
+        }
+
+        console.log('Clearing all data...');
+
+        const db = new Database(dbPath);
+
+        // Delete all data (CASCADE will also clear files since it references users)
+        db.exec('DELETE FROM files');
+        db.exec('DELETE FROM users');
+
+        // Also clear session database
+        const sessionsPath = path.join(dataDir, 'sessions.db');
+        if (fs.existsSync(sessionsPath)) {
+            const sessionsDb = new Database(sessionsPath);
+            sessionsDb.exec('DELETE FROM sessions');
+            sessionsDb.close();
+        }
+
+        db.close();
+
+        console.log('✅ All data cleared successfully!');
+        console.log('You can now register a new account.');
+
+        process.exit(0);
+    } catch (error) {
+        console.error('❌ Failed to clear data:', error.message);
+        process.exit(1);
+    }
+}
+
+resetData();
