@@ -12,8 +12,14 @@ const { promisify } = require('util');
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Trust proxy - required for secure cookies behind Fly.io proxy
+app.set('trust proxy', 1);
+
+// Use /data in production (Fly.io volume), ./data locally
+const isProduction = process.env.NODE_ENV === 'production';
+const dataDir = isProduction ? '/data' : path.join(__dirname, 'data');
+
 // Ensure data directory exists
-const dataDir = path.join(__dirname, 'data');
 if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
 }
@@ -35,8 +41,38 @@ const dbRun = (sql, params = []) => {
 const dbGet = promisify(db.get.bind(db));
 const dbAll = promisify(db.all.bind(db));
 
-// Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, 'uploads');
+// Initialize database schema if tables don't exist
+async function initializeDatabaseSchema() {
+    try {
+        // Check if users table exists
+        const tableCheck = await dbGet(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='users'"
+        );
+
+        if (!tableCheck) {
+            console.log('Initializing database schema...');
+            const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
+
+            // Execute schema synchronously
+            await new Promise((resolve, reject) => {
+                db.exec(schema, (err) => {
+                    if (err) reject(err);
+                    else resolve();
+                });
+            });
+
+            console.log('✅ Database schema initialized successfully');
+        } else {
+            console.log('Database schema already exists');
+        }
+    } catch (error) {
+        console.error('❌ Failed to initialize database schema:', error);
+        process.exit(1);
+    }
+}
+
+// Uploads directory - store inside data directory for single volume
+const uploadsDir = path.join(dataDir, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
 }
@@ -252,11 +288,177 @@ app.delete('/api/files/:id', requireAuth, async (req, res) => {
     }
 });
 
+// Update note in GEDCOM file
+app.post('/api/update-note', requireAuth, async (req, res) => {
+    const { fileId, personId, noteIndex, noteText } = req.body;
+
+    if (fileId === undefined || !personId || noteIndex === undefined || noteText === undefined) {
+        return res.status(400).json({ error: 'File ID, person ID, note index, and note text are required' });
+    }
+
+    try {
+        // Get the file
+        const file = await dbGet('SELECT file_path FROM files WHERE id = ? AND user_id = ?',
+            [fileId, req.session.userId]);
+
+        if (!file) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+
+        // Read the GEDCOM file
+        const gedcomContent = fs.readFileSync(file.file_path, 'utf8');
+        const lines = gedcomContent.split('\n');
+
+        let newLines = [];
+        let currentPerson = null;
+        let currentNoteIndex = -1;
+        let inTargetPerson = false;
+        let noteFound = false;
+        let skipNextLines = 0;
+
+        for (let i = 0; i < lines.length; i++) {
+            if (skipNextLines > 0) {
+                // Skip CONC/CONT lines of the old note
+                if (lines[i].trim().match(/^[12] (CONC|CONT)/)) {
+                    skipNextLines--;
+                    continue;
+                }
+                skipNextLines = 0;
+            }
+
+            const line = lines[i];
+            const trimmed = line.trim();
+
+            // Check for individual record
+            if (trimmed.startsWith('0 ') && trimmed.includes(' INDI')) {
+                const match = trimmed.match(/^0 (@[^@]+@) INDI/);
+                if (match) {
+                    currentPerson = match[1];
+                    inTargetPerson = (currentPerson === personId);
+                    currentNoteIndex = -1;
+                }
+            }
+
+            // If we're in the target person and find a NOTE tag
+            if (inTargetPerson && trimmed.match(/^1 NOTE/)) {
+                currentNoteIndex++;
+
+                if (currentNoteIndex === noteIndex) {
+                    // Replace this note
+                    newLines.push('1 NOTE ' + noteText);
+                    noteFound = true;
+                    // Count how many CONC/CONT lines to skip
+                    let j = i + 1;
+                    while (j < lines.length && lines[j].trim().match(/^[12] (CONC|CONT)/)) {
+                        skipNextLines++;
+                        j++;
+                    }
+                    continue;
+                }
+            }
+
+            newLines.push(line);
+        }
+
+        if (!noteFound) {
+            return res.status(404).json({ error: 'Note not found in GEDCOM file' });
+        }
+
+        // Write the updated GEDCOM file
+        fs.writeFileSync(file.file_path, newLines.join('\n'), 'utf8');
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Update note error:', error);
+        res.status(500).json({ error: 'Failed to update note' });
+    }
+});
+
+// Add new note to GEDCOM file
+app.post('/api/add-note', requireAuth, async (req, res) => {
+    const { fileId, personId, noteText } = req.body;
+
+    if (fileId === undefined || !personId || noteText === undefined) {
+        return res.status(400).json({ error: 'File ID, person ID, and note text are required' });
+    }
+
+    try {
+        // Get the file
+        const file = await dbGet('SELECT file_path FROM files WHERE id = ? AND user_id = ?',
+            [fileId, req.session.userId]);
+
+        if (!file) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+
+        // Read the GEDCOM file
+        const gedcomContent = fs.readFileSync(file.file_path, 'utf8');
+        const lines = gedcomContent.split('\n');
+
+        let newLines = [];
+        let inTargetPerson = false;
+        let noteAdded = false;
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const trimmed = line.trim();
+
+            // Check for individual record
+            if (trimmed.startsWith('0 ')) {
+                if (trimmed.includes(' INDI')) {
+                    const match = trimmed.match(/^0 (@[^@]+@) INDI/);
+                    if (match && match[1] === personId) {
+                        inTargetPerson = true;
+                        newLines.push(line);
+                        continue;
+                    } else if (inTargetPerson) {
+                        // We've reached the next record, add note before this
+                        newLines.push('1 NOTE ' + noteText);
+                        noteAdded = true;
+                        inTargetPerson = false;
+                    }
+                } else if (inTargetPerson) {
+                    // We've reached a non-INDI level 0 record, add note before this
+                    newLines.push('1 NOTE ' + noteText);
+                    noteAdded = true;
+                    inTargetPerson = false;
+                }
+            }
+
+            newLines.push(line);
+        }
+
+        // If we reached the end of file and haven't added the note yet, add it now
+        if (inTargetPerson && !noteAdded) {
+            newLines.push('1 NOTE ' + noteText);
+            noteAdded = true;
+        }
+
+        if (!noteAdded) {
+            return res.status(404).json({ error: 'Person not found in GEDCOM file' });
+        }
+
+        // Write the updated GEDCOM file
+        fs.writeFileSync(file.file_path, newLines.join('\n'), 'utf8');
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Add note error:', error);
+        res.status(500).json({ error: 'Failed to add note' });
+    }
+});
+
 // Health check for Fly.io
 app.get('/health', (req, res) => {
     res.json({ status: 'ok' });
 });
 
-app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
+// Start server after database is initialized
+initializeDatabaseSchema().then(() => {
+    app.listen(port, () => {
+        console.log(`Server running on port ${port}`);
+    });
+}).catch(err => {
+    console.error('Failed to start server:', err);
+    process.exit(1);
 });

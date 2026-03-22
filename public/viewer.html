@@ -1055,19 +1055,47 @@
             `;
 
             // Display notes if available
+            detailHTML += '<h3 style="margin-top: 20px;">Notes:</h3><div id="notesContainer">';
+
             if (person.notes && person.notes.length > 0) {
-                detailHTML += '<h3 style="margin-top: 20px;">Notes:</h3><div id="notesContainer">';
                 person.notes.forEach((note, index) => {
+                    const escapedNote = note.replace(/</g, '&lt;').replace(/>/g, '&gt;');
                     detailHTML += `
                         <div id="note-${index}" style="margin: 10px 0;">
-                            <p style="background: #f5f5f5; padding: 10px; border-radius: 5px; white-space: pre-wrap;">${note}</p>
+                            <div id="note-view-${index}">
+                                <p style="background: #f5f5f5; padding: 10px; border-radius: 5px; white-space: pre-wrap;">${escapedNote}</p>
+                                <button class="edit-btn" data-person-id="${personId}" data-note-index="${index}" onclick="editNote(this.dataset.personId, this.dataset.noteIndex)">✏️ Edit</button>
+                            </div>
+                            <div id="note-edit-${index}" style="display: none;">
+                                <textarea id="note-textarea-${index}" class="note-textarea">${escapedNote}</textarea>
+                                <div class="btn-group">
+                                    <button class="btn-save" data-person-id="${personId}" data-note-index="${index}" onclick="saveNote(this.dataset.personId, this.dataset.noteIndex)">💾 Save</button>
+                                    <button class="btn-cancel" data-note-index="${index}" onclick="cancelEdit(this.dataset.noteIndex)">✖ Cancel</button>
+                                </div>
+                            </div>
                         </div>
                     `;
                 });
-                detailHTML += '</div>';
             } else {
-                detailHTML += '<h3 style="margin-top: 20px;">Notes:</h3><div id="notesContainer"><p style="color: #999;">No notes available</p></div>';
+                detailHTML += '<p id="no-notes-message" style="color: #999;">No notes available</p>';
             }
+
+            // Add "Add Note" section
+            detailHTML += `
+                <div id="add-note-section" style="margin-top: 15px;">
+                    <div id="add-note-button-container">
+                        <button class="edit-btn" data-person-id="${personId}" onclick="showAddNote(this.dataset.personId)">➕ Add Note</button>
+                    </div>
+                    <div id="add-note-form" style="display: none;">
+                        <textarea id="add-note-textarea" class="note-textarea" placeholder="Enter your note here..."></textarea>
+                        <div class="btn-group">
+                            <button class="btn-save" data-person-id="${personId}" onclick="addNewNote(this.dataset.personId)">💾 Save</button>
+                            <button class="btn-cancel" onclick="cancelAddNote()">✖ Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            detailHTML += '</div>';
 
             // Get family information
             if (person.parentFamily && gedcomFamilies[person.parentFamily]) {
@@ -1118,6 +1146,127 @@
 
         function closeDetail() {
             document.getElementById('detailModal').classList.remove('active');
+        }
+
+        // Show add note form
+        function showAddNote(personId) {
+            document.getElementById('add-note-button-container').style.display = 'none';
+            document.getElementById('add-note-form').style.display = 'block';
+            document.getElementById('add-note-textarea').focus();
+        }
+
+        // Cancel add note
+        function cancelAddNote() {
+            document.getElementById('add-note-button-container').style.display = 'block';
+            document.getElementById('add-note-form').style.display = 'none';
+            document.getElementById('add-note-textarea').value = '';
+        }
+
+        // Add new note
+        async function addNewNote(personId) {
+            const textarea = document.getElementById('add-note-textarea');
+            const newNoteText = textarea.value.trim();
+
+            if (!newNoteText) {
+                alert('Note cannot be empty');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/add-note', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        fileId: selectedFileId,
+                        personId: personId,
+                        noteText: newNoteText
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to add note');
+                }
+
+                // Update the person in memory
+                const person = allPersons.find(p => p.id === personId);
+                if (person) {
+                    if (!person.notes) person.notes = [];
+                    person.notes.push(newNoteText);
+                }
+
+                // Refresh the detail view
+                closeDetail();
+                showDetail(personId);
+
+                alert('Note added successfully!');
+            } catch (error) {
+                console.error('Add note error:', error);
+                alert('Failed to add note: ' + error.message);
+            }
+        }
+
+        // Edit note
+        function editNote(personId, noteIndex) {
+            noteIndex = parseInt(noteIndex);
+            document.getElementById(`note-view-${noteIndex}`).style.display = 'none';
+            document.getElementById(`note-edit-${noteIndex}`).style.display = 'block';
+        }
+
+        // Cancel edit
+        function cancelEdit(noteIndex) {
+            noteIndex = parseInt(noteIndex);
+            document.getElementById(`note-view-${noteIndex}`).style.display = 'block';
+            document.getElementById(`note-edit-${noteIndex}`).style.display = 'none';
+        }
+
+        // Save note
+        async function saveNote(personId, noteIndex) {
+            noteIndex = parseInt(noteIndex);
+            const textarea = document.getElementById(`note-textarea-${noteIndex}`);
+            const newNoteText = textarea.value.trim();
+
+            if (!newNoteText) {
+                alert('Note cannot be empty');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/update-note', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        fileId: selectedFileId,
+                        personId: personId,
+                        noteIndex: noteIndex,
+                        noteText: newNoteText
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to save note');
+                }
+
+                // Update the note in memory
+                const person = allPersons.find(p => p.id === personId);
+                if (person) {
+                    person.notes[noteIndex] = newNoteText;
+                }
+
+                // Refresh the detail view
+                closeDetail();
+                showDetail(personId);
+
+                alert('Note saved successfully!');
+            } catch (error) {
+                console.error('Save note error:', error);
+                alert('Failed to save note: ' + error.message);
+            }
         }
 
         // Search functionality

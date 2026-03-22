@@ -15,7 +15,7 @@ data/
 *.db-shm
 *.db-wal
 
-# User uploads
+# User uploads (inside data/ now)
 uploads/
 
 # GEDCOM files (keep sample files out of git)

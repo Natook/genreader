@@ -4,8 +4,11 @@ const fs = require('fs');
 const path = require('path');
 
 function initDatabase() {
+    // Use /data in production (Fly.io volume), ./data locally
+    const isProduction = process.env.NODE_ENV === 'production';
+    const dataDir = isProduction ? '/data' : path.join(__dirname, 'data');
+    
     // Ensure data directory exists
-    const dataDir = path.join(__dirname, 'data');
     if (!fs.existsSync(dataDir)) {
         fs.mkdirSync(dataDir, { recursive: true });
         console.log('Created data directory');
