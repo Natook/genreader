@@ -1,9 +1,9 @@
 node_modules
-npm-debug.log
-.env
-*.ged
-data/
+npm - debug.log
+    .env
+    *.ged
+data /
 .git
-.gitignore
-.DS_Store
+        .gitignore
+        .DS_Store
 README.md

@@ -526,7 +526,6 @@
         let selectedFileId = null;
         let familyName = '';
         let fileName = '';
-        let gedcomFamilies = {};
 
         // Check authentication on page load
         async function checkAuth() {
@@ -606,7 +605,7 @@
             const file = e.target.files[0];
             if (!file) return;
 
-            document.getElementById('uploadStatus').textContent = 'Uploading...';
+            document.getElementById('uploadStatus').textContent = 'Uploading and importing...';
             document.getElementById('uploadStatus').style.color = '#666';
 
             const formData = new FormData();
@@ -624,7 +623,11 @@
                 }
 
                 const result = await response.json();
-                document.getElementById('uploadStatus').textContent = '✓ Uploaded successfully!';
+                const stats = result.stats || {};
+                const message = stats.individualCount 
+                    ? `✓ Imported ${stats.individualCount} individuals, ${stats.familyCount || 0} families!`
+                    : '✓ Uploaded successfully!';
+                document.getElementById('uploadStatus').textContent = message;
                 document.getElementById('uploadStatus').style.color = '#4CAF50';
 
                 // Reload file list
@@ -650,14 +653,14 @@
             fileName = filename.replace('.ged', '');
             displayFileList();
 
-            document.getElementById('personList').innerHTML = '<div class="loading">Loading GEDCOM file...</div>';
+            document.getElementById('personList').innerHTML = '<div class="loading">Loading family tree data...</div>';
 
             try {
-                const response = await fetch(`/api/files/${filename}`);
+                const response = await fetch(`/api/files/${fileId}/individuals`);
                 if (!response.ok) throw new Error('Failed to load file');
 
-                const gedcomText = await response.text();
-                parseGedcom(gedcomText);
+                const data = await response.json();
+                loadIndividualsFromDatabase(data);
 
                 document.getElementById('viewerSection').classList.add('active');
                 displayOnThisDay();
@@ -695,146 +698,53 @@
             }
         }
 
-        function parseGedcom(text) {
-            const lines = text.split('\n');
-            const individuals = {};
-            const families = {};
-            let firstPersonId = null;
-
-            let currentEntity = null;
-            let currentType = null;
-            let currentTag = null;
-            let currentNote = null;
-
-            for (let line of lines) {
-                line = line.trim();
-                if (!line) continue;
-
-                const parts = line.split(' ');
-                const level = parseInt(parts[0]);
-                const tag = parts[1];
-                const value = parts.slice(2).join(' ');
-
-                if (level === 0) {
-                    if (tag.startsWith('@') && tag.endsWith('@')) {
-                        currentEntity = tag;
-                        currentType = parts[2];
-
-                        if (currentType === 'INDI') {
-                            // Track the first person in the file
-                            if (firstPersonId === null) {
-                                firstPersonId = currentEntity;
-                            }
-
-                            individuals[currentEntity] = {
-                                id: currentEntity,
-                                name: '',
-                                givenName: '',
-                                surname: '',
-                                sex: '',
-                                birth: { date: '', place: '' },
-                                death: { date: '', place: '' },
-                                families: [],
-                                parentFamily: null,
-                                notes: [],
-                                relationship: ''
-                            };
-                        } else if (currentType === 'FAM') {
-                            families[currentEntity] = {
-                                id: currentEntity,
-                                husband: '',
-                                wife: '',
-                                children: []
-                            };
-                        }
-                    }
-                    currentTag = null;
-                } else if (level === 1 && currentEntity) {
-                    // Save previous note if switching tags
-                    if (currentNote !== null && tag !== 'CONC' && tag !== 'CONT' && tag !== 'NOTE') {
-                        if (currentType === 'INDI') {
-                            let cleanNote = currentNote.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&ouml;/g, 'ö').replace(/&aring;/g, 'å').replace(/&auml;/g, 'ä').replace(/&Ouml;/g, 'Ö').replace(/&Aring;/g, 'Å').replace(/&Auml;/g, 'Ä').replace(/&ndash;/g, '–').replace(/&amp;/g, '&').trim();
-                            if (cleanNote) {
-                                individuals[currentEntity].notes.push(cleanNote);
-                            }
-                        }
-                        currentNote = null;
-                    }
-
-                    currentTag = tag;
-
-                    if (currentType === 'INDI') {
-                        if (tag === 'NAME') {
-                            individuals[currentEntity].name = value.replace(/\//g, '');
-                        } else if (tag === 'SEX') {
-                            individuals[currentEntity].sex = value;
-                        } else if (tag === 'NOTE') {
-                            currentNote = value;
-                        } else if (tag === '_RELA') {
-                            individuals[currentEntity].relationship = value;
-                        } else if (tag === 'FAMS') {
-                            individuals[currentEntity].families.push(value);
-                        } else if (tag === 'FAMC') {
-                            individuals[currentEntity].parentFamily = value;
-                        }
-                    } else if (currentType === 'FAM') {
-                        if (tag === 'HUSB') {
-                            families[currentEntity].husband = value;
-                        } else if (tag === 'WIFE') {
-                            families[currentEntity].wife = value;
-                        } else if (tag === 'CHIL') {
-                            families[currentEntity].children.push(value);
-                        }
-                    }
-                } else if (level === 2 && currentEntity) {
-                    if (tag === 'CONC') {
-                        // Concatenate to current note without space
-                        if (currentNote !== null) {
-                            currentNote += value;
-                        }
-                    } else if (tag === 'CONT') {
-                        // Continue with a new line
-                        if (currentNote !== null) {
-                            currentNote += ' ' + value;
-                        }
-                    } else if (currentType === 'INDI') {
-                        if (tag === 'GIVN') {
-                            individuals[currentEntity].givenName = value;
-                        } else if (tag === 'SURN') {
-                            individuals[currentEntity].surname = value;
-                        } else if (currentTag === 'BIRT' && tag === 'DATE') {
-                            individuals[currentEntity].birth.date = value;
-                        } else if (currentTag === 'BIRT' && tag === 'PLAC') {
-                            individuals[currentEntity].birth.place = value;
-                        } else if (currentTag === 'DEAT' && tag === 'DATE') {
-                            individuals[currentEntity].death.date = value;
-                        } else if (currentTag === 'DEAT' && tag === 'PLAC') {
-                            individuals[currentEntity].death.place = value;
-                        }
-                    }
+        // Load individuals from database API
+        function loadIndividualsFromDatabase(data) {
+            const individuals = data.individuals || [];
+            
+            // Transform database individuals to match the UI structure
+            allPersons = individuals.map(person => {
+                // Build full name from parts if full_name is not available
+                let fullName = person.full_name || '';
+                if (!fullName && (person.given_name || person.surname)) {
+                    fullName = [person.given_name, person.surname].filter(Boolean).join(' ');
                 }
-            }
+                
+                return {
+                    id: person.id, // database ID
+                    gedcomId: person.gedcom_id, // @I123@
+                    name: fullName,
+                    givenName: person.given_name || '',
+                    surname: person.surname || '',
+                    sex: person.sex || '',
+                    birth: {
+                        date: person.birth_date || '',
+                        place: person.birth_place || ''
+                    },
+                    death: {
+                        date: person.death_date || '',
+                        place: person.death_place || ''
+                    },
+                    families: [], // Will be populated if needed
+                    parentFamily: null,
+                    notes: [], // Will be loaded when viewing details
+                    relationship: person.relationship_text || '',
+                    relationshipType: person.relationship_type || ''
+                };
+            });
 
-            // Save any remaining note
-            if (currentNote !== null && currentEntity && currentType === 'INDI') {
-                let cleanNote = currentNote.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&ouml;/g, 'ö').replace(/&aring;/g, 'å').replace(/&auml;/g, 'ä').replace(/&Ouml;/g, 'Ö').replace(/&Aring;/g, 'Å').replace(/&Auml;/g, 'Ä').replace(/&ndash;/g, '–').replace(/&amp;/g, '&').trim();
-                if (cleanNote) {
-                    individuals[currentEntity].notes.push(cleanNote);
-                }
-            }
+            // Sort by surname and given name
+            allPersons.sort((a, b) => {
+                const surnameCompare = (a.surname || '').localeCompare(b.surname || '');
+                if (surnameCompare !== 0) return surnameCompare;
+                return (a.givenName || '').localeCompare(b.givenName || '');
+            });
 
-            // Store families info for later use
-            gedcomFamilies = families;
-
-            // Convert to array and sort by name
-            allPersons = Object.values(individuals)
-                .filter(p => p.name)
-                .sort((a, b) => a.name.localeCompare(b.name));
-
-            // Extract family name from the first person in the file (root person)
+            // Extract family name from first person or root person
             familyName = '';
-            if (firstPersonId && individuals[firstPersonId]) {
-                familyName = individuals[firstPersonId].surname;
+            const rootPerson = allPersons.find(p => p.relationship === 'Jag') || allPersons[0];
+            if (rootPerson) {
+                familyName = rootPerson.surname || '';
             }
 
             // If no surname found, try to get from file name
@@ -936,7 +846,7 @@
                 const yearText = event.year || '?';
 
                 html += `
-                    <div class="event-item" onclick="showDetail('${event.person.id}')">
+                    <div class="event-item" onclick="showDetail(${event.person.id})">
                         <span class="event-type">${emoji} ${yearText}${yearsAgoText}:</span>
                         ${event.person.name} ${action}
                     </div>
@@ -1018,9 +928,9 @@
                 const relationshipHtml = person.relationship ? `<div class="relationship-badge ${relationshipClass}">${person.relationship}</div>` : '';
 
                 return `
-                    <div class="person-card" onclick="showDetail('${person.id}')">
+                    <div class="person-card" onclick="showDetail(${person.id})">
                         <div class="person-name">
-                            ${person.name}
+                            ${person.name || 'Unknown'}
                             ${person.sex ? `<span class="gender-icon ${genderClass}"></span>` : ''}
                         </div>
                         <div class="person-info">
@@ -1035,15 +945,26 @@
             listElement.innerHTML = html;
         }
 
-        function showDetail(personId) {
+        async function showDetail(personId) {
             const person = allPersons.find(p => p.id === personId);
             if (!person) return;
+
+            // Fetch detailed information including notes from database
+            let detailedPerson = null;
+            try {
+                const response = await fetch(`/api/individuals/${personId}`);
+                if (response.ok) {
+                    detailedPerson = await response.json();
+                }
+            } catch (error) {
+                console.error('Error loading person details:', error);
+            }
 
             const relationshipClass = person.relationship === 'Jag' ? 'relationship-me' : '';
             const relationshipBadge = person.relationship ? `<div class="relationship-badge ${relationshipClass}" style="display: inline-block;">${person.relationship}</div>` : '';
 
             let detailHTML = `
-                <h2>${person.name}</h2>
+                <h2>${person.name || 'Unknown'}</h2>
                 <div style="margin-top: 20px;">
                     ${relationshipBadge ? `<p><strong>${relationshipBadge}</strong> </p>` : ''}
                     </br>    
@@ -1054,23 +975,25 @@
                     ${person.death.place ? `<p><strong>Death Place:</strong> ${person.death.place}</p>` : ''}
             `;
 
-            // Display notes if available
+            // Display notes if available (from database)
             detailHTML += '<h3 style="margin-top: 20px;">Notes:</h3><div id="notesContainer">';
 
-            if (person.notes && person.notes.length > 0) {
-                person.notes.forEach((note, index) => {
-                    const escapedNote = note.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const notes = detailedPerson?.notes || [];
+            if (notes.length > 0) {
+                notes.forEach((note) => {
+                    const escapedNote = note.text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
                     detailHTML += `
-                        <div id="note-${index}" style="margin: 10px 0;">
-                            <div id="note-view-${index}">
+                        <div id="note-${note.id}" style="margin: 10px 0;">
+                            <div id="note-view-${note.id}">
                                 <p style="background: #f5f5f5; padding: 10px; border-radius: 5px; white-space: pre-wrap;">${escapedNote}</p>
-                                <button class="edit-btn" data-person-id="${personId}" data-note-index="${index}" onclick="editNote(this.dataset.personId, this.dataset.noteIndex)">✏️ Edit</button>
+                                <button class="edit-btn" data-note-id="${note.id}" onclick="editNote(${note.id})">✏️ Edit</button>
+                                <button class="delete-btn" data-note-id="${note.id}" onclick="deleteNote(${note.id}, ${personId})" style="margin-left: 5px;">🗑️ Delete</button>
                             </div>
-                            <div id="note-edit-${index}" style="display: none;">
-                                <textarea id="note-textarea-${index}" class="note-textarea">${escapedNote}</textarea>
+                            <div id="note-edit-${note.id}" style="display: none;">
+                                <textarea id="note-textarea-${note.id}" class="note-textarea">${escapedNote}</textarea>
                                 <div class="btn-group">
-                                    <button class="btn-save" data-person-id="${personId}" data-note-index="${index}" onclick="saveNote(this.dataset.personId, this.dataset.noteIndex)">💾 Save</button>
-                                    <button class="btn-cancel" data-note-index="${index}" onclick="cancelEdit(this.dataset.noteIndex)">✖ Cancel</button>
+                                    <button class="btn-save" data-note-id="${note.id}" onclick="saveNote(${note.id}, ${personId})">💾 Save</button>
+                                    <button class="btn-cancel" data-note-id="${note.id}" onclick="cancelEdit(${note.id})">✖ Cancel</button>
                                 </div>
                             </div>
                         </div>
@@ -1097,45 +1020,46 @@
             `;
             detailHTML += '</div>';
 
-            // Get family information
-            if (person.parentFamily && gedcomFamilies[person.parentFamily]) {
-                const family = gedcomFamilies[person.parentFamily];
-                detailHTML += '<h3 style="margin-top: 20px;">Parents:</h3>';
-
-                if (family.husband) {
-                    const father = allPersons.find(p => p.id === family.husband);
-                    if (father) detailHTML += `<p>Father: <span class="person-link" onclick="showDetail('${father.id}')">${father.name}</span></p>`;
+            // Get family information from detailed API response
+            if (detailedPerson) {
+                // Display parent families
+                if (detailedPerson.parentFamilies && detailedPerson.parentFamilies.length > 0) {
+                    detailHTML += '<h3 style="margin-top: 20px;">Parents:</h3>';
+                    detailedPerson.parentFamilies.forEach(family => {
+                        if (family.father_id && family.father_name) {
+                            detailHTML += `<p>Father: <span class="person-link" onclick="showDetail(${family.father_id})">${family.father_name}</span></p>`;
+                        }
+                        if (family.mother_id && family.mother_name) {
+                            detailHTML += `<p>Mother: <span class="person-link" onclick="showDetail(${family.mother_id})">${family.mother_name}</span></p>`;
+                        }
+                    });
                 }
 
-                if (family.wife) {
-                    const mother = allPersons.find(p => p.id === family.wife);
-                    if (mother) detailHTML += `<p>Mother: <span class="person-link" onclick="showDetail('${mother.id}')">${mother.name}</span></p>`;
-                }
-            }
-
-            // Get spouse and children
-            if (person.families && person.families.length > 0) {
-                person.families.forEach(famId => {
-                    const family = gedcomFamilies[famId];
-                    if (family) {
+                // Display spouse families
+                if (detailedPerson.spouseFamilies && detailedPerson.spouseFamilies.length > 0) {
+                    detailedPerson.spouseFamilies.forEach(family => {
                         detailHTML += '<h3 style="margin-top: 20px;">Family:</h3>';
+                        
+                        if (family.spouse_id && family.spouse_name) {
+                            detailHTML += `<p>Spouse: <span class="person-link" onclick="showDetail(${family.spouse_id})">${family.spouse_name}</span></p>`;
+                        }
 
-                        const spouseId = person.sex === 'M' ? family.wife : family.husband;
-                        if (spouseId) {
-                            const spouse = allPersons.find(p => p.id === spouseId);
-                            if (spouse) detailHTML += `<p>Spouse: <span class="person-link" onclick="showDetail('${spouse.id}')">${spouse.name}</span></p>`;
+                        if (family.marriage_date || family.marriage_place) {
+                            detailHTML += '<p><strong>Marriage:</strong> ';
+                            if (family.marriage_date) detailHTML += family.marriage_date;
+                            if (family.marriage_place) detailHTML += ` in ${family.marriage_place}`;
+                            detailHTML += '</p>';
                         }
 
                         if (family.children && family.children.length > 0) {
                             detailHTML += '<p><strong>Children:</strong></p><ul>';
-                            family.children.forEach(childId => {
-                                const child = allPersons.find(p => p.id === childId);
-                                if (child) detailHTML += `<li><span class="person-link" onclick="showDetail('${child.id}')">${child.name}</span></li>`;
+                            family.children.forEach(child => {
+                                detailHTML += `<li><span class="person-link" onclick="showDetail(${child.id})">${child.full_name || (child.given_name + ' ' + child.surname)}</span></li>`;
                             });
                             detailHTML += '</ul>';
                         }
-                    }
-                });
+                    });
+                }
             }
 
             detailHTML += '</div>';
@@ -1173,14 +1097,12 @@
             }
 
             try {
-                const response = await fetch('/api/add-note', {
+                const response = await fetch(`/api/individuals/${personId}/notes`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        fileId: selectedFileId,
-                        personId: personId,
                         noteText: newNoteText
                     })
                 });
@@ -1190,16 +1112,8 @@
                     throw new Error(error.error || 'Failed to add note');
                 }
 
-                // Update the person in memory
-                const person = allPersons.find(p => p.id === personId);
-                if (person) {
-                    if (!person.notes) person.notes = [];
-                    person.notes.push(newNoteText);
-                }
-
                 // Refresh the detail view
-                closeDetail();
-                showDetail(personId);
+                await showDetail(personId);
 
                 alert('Note added successfully!');
             } catch (error) {
@@ -1209,23 +1123,20 @@
         }
 
         // Edit note
-        function editNote(personId, noteIndex) {
-            noteIndex = parseInt(noteIndex);
-            document.getElementById(`note-view-${noteIndex}`).style.display = 'none';
-            document.getElementById(`note-edit-${noteIndex}`).style.display = 'block';
+        function editNote(noteId) {
+            document.getElementById(`note-view-${noteId}`).style.display = 'none';
+            document.getElementById(`note-edit-${noteId}`).style.display = 'block';
         }
 
         // Cancel edit
-        function cancelEdit(noteIndex) {
-            noteIndex = parseInt(noteIndex);
-            document.getElementById(`note-view-${noteIndex}`).style.display = 'block';
-            document.getElementById(`note-edit-${noteIndex}`).style.display = 'none';
+        function cancelEdit(noteId) {
+            document.getElementById(`note-view-${noteId}`).style.display = 'block';
+            document.getElementById(`note-edit-${noteId}`).style.display = 'none';
         }
 
         // Save note
-        async function saveNote(personId, noteIndex) {
-            noteIndex = parseInt(noteIndex);
-            const textarea = document.getElementById(`note-textarea-${noteIndex}`);
+        async function saveNote(noteId, personId) {
+            const textarea = document.getElementById(`note-textarea-${noteId}`);
             const newNoteText = textarea.value.trim();
 
             if (!newNoteText) {
@@ -1234,15 +1145,12 @@
             }
 
             try {
-                const response = await fetch('/api/update-note', {
-                    method: 'POST',
+                const response = await fetch(`/api/notes/${noteId}`, {
+                    method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        fileId: selectedFileId,
-                        personId: personId,
-                        noteIndex: noteIndex,
                         noteText: newNoteText
                     })
                 });
@@ -1252,20 +1160,37 @@
                     throw new Error(error.error || 'Failed to save note');
                 }
 
-                // Update the note in memory
-                const person = allPersons.find(p => p.id === personId);
-                if (person) {
-                    person.notes[noteIndex] = newNoteText;
-                }
-
                 // Refresh the detail view
-                closeDetail();
-                showDetail(personId);
+                await showDetail(personId);
 
                 alert('Note saved successfully!');
             } catch (error) {
                 console.error('Save note error:', error);
                 alert('Failed to save note: ' + error.message);
+            }
+        }
+
+        // Delete note
+        async function deleteNote(noteId, personId) {
+            if (!confirm('Are you sure you want to delete this note?')) return;
+
+            try {
+                const response = await fetch(`/api/notes/${noteId}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to delete note');
+                }
+
+                // Refresh the detail view
+                await showDetail(personId);
+
+                alert('Note deleted successfully!');
+            } catch (error) {
+                console.error('Delete note error:', error);
+                alert('Failed to delete note: ' + error.message);
             }
         }
 

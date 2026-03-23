@@ -7,7 +7,7 @@ function initDatabase() {
     // Use /data in production (Fly.io volume), ./data locally
     const isProduction = process.env.NODE_ENV === 'production';
     const dataDir = isProduction ? '/data' : path.join(__dirname, 'data');
-    
+
     // Ensure data directory exists
     if (!fs.existsSync(dataDir)) {
         fs.mkdirSync(dataDir, { recursive: true });
