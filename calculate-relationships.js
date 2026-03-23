@@ -233,13 +233,13 @@ class RelationshipCalculator {
 
     processAuntsUncles(parentId, parentMap, childrenMap, individuals, currentPath, relationships, visited, rootPersonId) {
         const grandparents = parentMap.get(parentId) || [];
-        
+
         for (const grandparentId of grandparents) {
             const siblings = childrenMap.get(grandparentId) || [];
-            
+
             for (const siblingId of siblings) {
                 if (siblingId === parentId || visited.has(siblingId)) continue;
-                
+
                 const sibling = individuals.get(siblingId);
                 if (!sibling) continue;
 
@@ -330,24 +330,36 @@ class RelationshipCalculator {
 
     buildAncestorRelationship(path) {
         // Build compound Swedish terms: far, mor, farfar, farmor, etc.
-        let prefix = '';
-        
-        for (let i = 0; i < path.length; i++) {
-            const step = path[i];
-            const term = step.sex === 'M' ? 'far' : step.sex === 'F' ? 'mor' : 'förälder';
-            
-            if (i === 0) {
-                prefix = term;
-            } else if (i === 1) {
-                // Combine into compound: farfar, farmor, morfar, mormor
-                prefix = prefix + term;
+        // Strategy: Combine pairs from left to right
+        // - Simple term + simple term = compound (farfar, morfar, etc.)
+        // - Compound term + new term = possessive connection (farfars mor)
+        // e.g., [far, far, mor, far, mor] -> "farfar" -> "farfars mor" -> "farfars morfar" -> "farfars morfars mor"
+
+        if (path.length === 0) {
+            return { text: 'Jag', type: 'self' };
+        }
+
+        // Start with the first term
+        let result = path[0].sex === 'M' ? 'far' : path[0].sex === 'F' ? 'mor' : 'förälder';
+        let lastIsCompound = false; // Track if the last component is a compound term
+
+        // Process each subsequent term
+        for (let i = 1; i < path.length; i++) {
+            const term = path[i].sex === 'M' ? 'far' : path[i].sex === 'F' ? 'mor' : 'förälder';
+
+            if (!lastIsCompound) {
+                // Last component is simple, combine them into compound
+                result = result + term;
+                lastIsCompound = true;
             } else {
-                prefix = prefix + 's ' + term;
+                // Last component is compound, add with possessive
+                result = result + 's ' + term;
+                lastIsCompound = false;
             }
         }
 
         // Capitalize first letter
-        const text = prefix.charAt(0).toUpperCase() + prefix.slice(1);
+        const text = result.charAt(0).toUpperCase() + result.slice(1);
         return { text, type: 'ancestor' };
     }
 
