@@ -299,8 +299,8 @@
             background: white;
             padding: 30px;
             border-radius: 12px;
-            max-width: 600px;
-            max-height: 80vh;
+            width: 600px;
+            height: 80vh;
             overflow-y: auto;
             position: relative;
         }
@@ -467,6 +467,132 @@
             border-radius: 5px;
             margin-bottom: 15px;
         }
+
+        .status-message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 10000;
+            max-width: 400px;
+            animation: slideIn 0.3s ease-out;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(450px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+
+            to {
+                transform: translateX(450px);
+                opacity: 0;
+            }
+        }
+
+        .status-message.success {
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+
+        .status-message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+
+        .status-message.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border-left: 4px solid #17a2b8;
+        }
+
+        .delete-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .delete-btn:hover {
+            background: #c82333;
+        }
+
+        .confirm-delete {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+
+        .confirm-delete-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .btn-confirm {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .btn-confirm:hover {
+            background: #c82333;
+        }
+
+        /* Mobile responsive styles */
+        @media (max-width: 768px) {
+            .detail-content {
+                width: 90vw;
+                height: 85vh;
+                padding: 20px;
+            }
+
+            .header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+
+            .header h1 {
+                font-size: 1.5em;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .detail-content {
+                width: 95vw;
+                height: 90vh;
+                padding: 15px;
+            }
+        }
     </style>
 </head>
 
@@ -526,6 +652,30 @@
         let selectedFileId = null;
         let familyName = '';
         let fileName = '';
+
+        // Show status message (replaces alert)
+        function showMessage(message, type = 'info', duration = 3000) {
+            // Remove any existing message
+            const existing = document.querySelector('.status-message');
+            if (existing) {
+                existing.remove();
+            }
+
+            // Create new message
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `status-message ${type}`;
+
+            const icon = type === 'success' ? '✓' : type === 'error' ? '✗' : 'ℹ';
+            messageDiv.innerHTML = `<strong>${icon}</strong> <span>${message}</span>`;
+
+            document.body.appendChild(messageDiv);
+
+            // Auto remove after duration
+            setTimeout(() => {
+                messageDiv.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => messageDiv.remove(), 300);
+            }, duration);
+        }
 
         // Check authentication on page load
         async function checkAuth() {
@@ -624,7 +774,7 @@
 
                 const result = await response.json();
                 const stats = result.stats || {};
-                const message = stats.individualCount 
+                const message = stats.individualCount
                     ? `✓ Imported ${stats.individualCount} individuals, ${stats.familyCount || 0} families!`
                     : '✓ Uploaded successfully!';
                 document.getElementById('uploadStatus').textContent = message;
@@ -654,6 +804,7 @@
             displayFileList();
 
             document.getElementById('personList').innerHTML = '<div class="loading">Loading family tree data...</div>';
+            showMessage('Loading family tree data...', 'info', 2000);
 
             try {
                 const response = await fetch(`/api/files/${fileId}/individuals`);
@@ -672,8 +823,24 @@
         }
 
         // Delete a file
-        async function deleteFile(fileId) {
-            if (!confirm('Are you sure you want to delete this file?')) return;
+        async function deleteFile(fileId, confirmed) {
+            // Show inline confirmation if not already confirmed
+            if (!confirmed) {
+                const fileItem = document.querySelector(`[data-file-id="${fileId}"]`);
+                if (fileItem && !fileItem.querySelector('.confirm-delete')) {
+                    const confirmDiv = document.createElement('div');
+                    confirmDiv.className = 'confirm-delete';
+                    confirmDiv.innerHTML = `
+                        <strong>⚠️ Delete this file?</strong>
+                        <div class="confirm-delete-buttons">
+                            <button class="btn-confirm" onclick="deleteFile(${fileId}, true); event.stopPropagation();">Yes, Delete</button>
+                            <button class="btn-cancel" onclick="this.closest('.confirm-delete').remove(); event.stopPropagation();">Cancel</button>
+                        </div>
+                    `;
+                    fileItem.appendChild(confirmDiv);
+                }
+                return;
+            }
 
             try {
                 const response = await fetch(`/api/files/${fileId}`, {
@@ -690,18 +857,20 @@
                     filteredPersons = [];
                 }
 
+                showMessage('File deleted successfully!', 'success');
+
                 // Reload file list
                 await loadUserFiles();
             } catch (error) {
                 console.error('Delete error:', error);
-                alert('Failed to delete file. Please try again.');
+                showMessage('Failed to delete file. Please try again.', 'error');
             }
         }
 
         // Load individuals from database API
         function loadIndividualsFromDatabase(data) {
             const individuals = data.individuals || [];
-            
+
             // Transform database individuals to match the UI structure
             allPersons = individuals.map(person => {
                 // Build full name from parts if full_name is not available
@@ -709,7 +878,7 @@
                 if (!fullName && (person.given_name || person.surname)) {
                     fullName = [person.given_name, person.surname].filter(Boolean).join(' ');
                 }
-                
+
                 return {
                     id: person.id, // database ID
                     gedcomId: person.gedcom_id, // @I123@
@@ -1039,7 +1208,7 @@
                 if (detailedPerson.spouseFamilies && detailedPerson.spouseFamilies.length > 0) {
                     detailedPerson.spouseFamilies.forEach(family => {
                         detailHTML += '<h3 style="margin-top: 20px;">Family:</h3>';
-                        
+
                         if (family.spouse_id && family.spouse_name) {
                             detailHTML += `<p>Spouse: <span class="person-link" onclick="showDetail(${family.spouse_id})">${family.spouse_name}</span></p>`;
                         }
@@ -1092,7 +1261,7 @@
             const newNoteText = textarea.value.trim();
 
             if (!newNoteText) {
-                alert('Note cannot be empty');
+                showMessage('Note cannot be empty', 'error');
                 return;
             }
 
@@ -1112,13 +1281,13 @@
                     throw new Error(error.error || 'Failed to add note');
                 }
 
+                showMessage('Note added successfully!', 'success');
+
                 // Refresh the detail view
                 await showDetail(personId);
-
-                alert('Note added successfully!');
             } catch (error) {
                 console.error('Add note error:', error);
-                alert('Failed to add note: ' + error.message);
+                showMessage('Failed to add note: ' + error.message, 'error');
             }
         }
 
@@ -1140,7 +1309,7 @@
             const newNoteText = textarea.value.trim();
 
             if (!newNoteText) {
-                alert('Note cannot be empty');
+                showMessage('Note cannot be empty', 'error');
                 return;
             }
 
@@ -1160,19 +1329,33 @@
                     throw new Error(error.error || 'Failed to save note');
                 }
 
+                showMessage('Note saved successfully!', 'success');
+
                 // Refresh the detail view
                 await showDetail(personId);
-
-                alert('Note saved successfully!');
             } catch (error) {
                 console.error('Save note error:', error);
-                alert('Failed to save note: ' + error.message);
+                showMessage('Failed to save note: ' + error.message, 'error');
             }
         }
 
         // Delete note
-        async function deleteNote(noteId, personId) {
-            if (!confirm('Are you sure you want to delete this note?')) return;
+        async function deleteNote(noteId, personId, confirmed) {
+            // Show inline confirmation if not already confirmed
+            if (!confirmed) {
+                const noteDiv = document.getElementById(`note-${noteId}`);
+                const confirmDiv = document.createElement('div');
+                confirmDiv.className = 'confirm-delete';
+                confirmDiv.innerHTML = `
+                    <strong>⚠️ Delete this note?</strong>
+                    <div class="confirm-delete-buttons">
+                        <button class="btn-confirm" onclick="deleteNote(${noteId}, ${personId}, true)">Yes, Delete</button>
+                        <button class="btn-cancel" onclick="this.closest('.confirm-delete').remove()">Cancel</button>
+                    </div>
+                `;
+                noteDiv.appendChild(confirmDiv);
+                return;
+            }
 
             try {
                 const response = await fetch(`/api/notes/${noteId}`, {
@@ -1184,13 +1367,13 @@
                     throw new Error(error.error || 'Failed to delete note');
                 }
 
+                showMessage('Note deleted successfully!', 'success');
+
                 // Refresh the detail view
                 await showDetail(personId);
-
-                alert('Note deleted successfully!');
             } catch (error) {
                 console.error('Delete note error:', error);
-                alert('Failed to delete note: ' + error.message);
+                showMessage('Failed to delete note: ' + error.message, 'error');
             }
         }
 

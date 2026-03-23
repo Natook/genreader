@@ -152,8 +152,8 @@
             background: white;
             padding: 30px;
             border-radius: 12px;
-            max-width: 600px;
-            max-height: 80vh;
+            width: 600px;
+            height: 80vh;
             overflow-y: auto;
             position: relative;
         }
@@ -303,6 +303,23 @@
         .event-type {
             font-weight: bold;
             margin-right: 5px;
+        }
+
+        /* Mobile responsive styles */
+        @media (max-width: 768px) {
+            .detail-content {
+                width: 90vw;
+                height: 85vh;
+                padding: 20px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .detail-content {
+                width: 95vw;
+                height: 90vh;
+                padding: 15px;
+            }
         }
     </style>
 </head>
@@ -880,7 +897,11 @@
 
         function saveGedcom() {
             if (!hasChanges) {
-                alert('No changes to save.');
+                document.getElementById('saveStatus').textContent = 'ℹ️ No changes to save';
+                document.getElementById('saveStatus').style.color = '#17a2b8';
+                setTimeout(() => {
+                    document.getElementById('saveStatus').textContent = '';
+                }, 3000);
                 return;
             }
 
